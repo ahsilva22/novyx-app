@@ -1660,12 +1660,14 @@ function escapeAttr(s){ return (s||'').replace(/"/g,'&quot;'); }
 /* ---------------------- Conteúdo para impressão/PDF (sem dependências externas) ---------------------- */
 function printDocHeader(subtitle){
   const contatos = [state.empresa.telefone, state.empresa.email, state.empresa.endereco].filter(Boolean).join(' · ');
-  return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;padding-bottom:14px;border-bottom:2px solid #0D0D0D;">
-    <img src="${LOGO_DATA_URI}" style="height:34px;width:auto;">
-    <div><div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;color:#0D0D0D;">${escapeHTML(state.empresa.nome)}</div>
-    ${contatos ? `<div style="font-size:11px;color:#888;">${escapeHTML(contatos)}</div>` : ''}
-    <div style="font-size:12px;color:#666;margin-top:2px;">${subtitle}</div></div>
-  </div>`;
+  return `<table style="width:100%;border-collapse:collapse;margin-bottom:18px;"><tr>
+    <td style="width:46px;vertical-align:top;padding-bottom:14px;border-bottom:2px solid #0D0D0D;"><img src="${LOGO_DATA_URI}" style="height:34px;width:auto;"></td>
+    <td style="vertical-align:top;padding-bottom:14px;border-bottom:2px solid #0D0D0D;">
+      <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;color:#0D0D0D;">${escapeHTML(state.empresa.nome)}</div>
+      ${contatos ? `<div style="font-size:11px;color:#888;">${escapeHTML(contatos)}</div>` : ''}
+      <div style="font-size:12px;color:#666;margin-top:2px;">${subtitle}</div>
+    </td>
+  </tr></table>`;
 }
 async function orcamentoPrintContent(o){
   const cliente = state.clientes.find(c=>c.id===o.clienteId) || {nome:'Cliente removido'};
@@ -1680,20 +1682,20 @@ async function orcamentoPrintContent(o){
   }
   return `
     ${printDocHeader('Orçamento nº '+o.numero+' · '+fmtDate(o.data))}
-    <div style="display:flex;justify-content:space-between;gap:16px;margin-bottom:14px;font-size:13px;color:#111;">
-      <div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:14px;font-size:13px;color:#111;"><tr>
+      <td style="vertical-align:top;">
         <strong style="font-size:14px;">${escapeHTML(cliente.nome)}</strong><br>
         ${cliente.documento ? escapeHTML(cliente.documento)+'<br>' : ''}
         ${cliente.telefone||cliente.email ? `${escapeHTML(cliente.telefone||'')}${cliente.telefone&&cliente.email?' · ':''}${escapeHTML(cliente.email||'')}<br>` : ''}
         ${endereco && enderecoLinha(endereco)!=='—' ? `<span style="color:#555;">${endereco.label?escapeHTML(endereco.label)+': ':''}${escapeHTML(enderecoLinha(endereco))}</span>` : ''}
-      </div>
-      <div style="text-align:right;">Status: <strong>${st.label}</strong></div>
-    </div>
+      </td>
+      <td style="vertical-align:top;text-align:right;white-space:nowrap;width:1%;">Status: <strong>${st.label}</strong></td>
+    </tr></table>
     <table style="width:100%;border-collapse:collapse;font-size:13px;color:#111;">
       <thead><tr style="border-bottom:2px solid #0D0D0D;text-align:left;"><th style="padding:6px 8px 6px 0;">Descrição</th><th style="padding:6px 8px;">Qtd.</th><th style="padding:6px 8px;">Vl. unit.</th><th style="padding:6px 0;text-align:right;">Subtotal</th></tr></thead>
       <tbody>${(o.itens||[]).map(it=>`<tr style="border-bottom:1px solid #eee;"><td style="padding:6px 8px 6px 0;">${escapeHTML(it.descricao)}</td><td style="padding:6px 8px;">${it.qtd}</td><td style="padding:6px 8px;">${fmtMoney(it.valorUnit)}</td><td style="padding:6px 0;text-align:right;">${fmtMoney((it.qtd||0)*(it.valorUnit||0))}</td></tr>`).join('')}</tbody>
     </table>
-    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;margin-top:12px;font-size:13px;color:#111;">
+    <div style="margin-top:12px;font-size:13px;color:#111;text-align:right;">
       <div>Subtotal: ${fmtMoney(calcSubtotal(o))}</div>
       ${o.descontoPercentual ? `<div>Desconto (${o.descontoPercentual}%): - ${fmtMoney(calcDescontoValor(o))}</div>` : ''}
       <div style="font-size:18px;font-weight:700;">Total: ${fmtMoney(calcTotal(o))}</div>
@@ -1725,7 +1727,7 @@ async function checklistPrintContent(k){
       it.fotoDepois?`<div><div style="font-size:10px;color:#888;">Depois</div><img src="${it.fotoDepois}" style="width:110px;height:82px;object-fit:cover;border-radius:6px;"></div>`:''
     ].filter(Boolean).join('');
     return `${header}<div style="padding:8px 0;border-bottom:1px solid #eee;font-size:13px;color:#111;">
-      <div style="display:flex;justify-content:space-between;gap:10px;"><span>${escapeHTML(it.descricao)}</span><strong>${st.label}</strong></div>
+      <table style="width:100%;border-collapse:collapse;"><tr><td>${escapeHTML(it.descricao)}</td><td style="text-align:right;white-space:nowrap;width:1%;"><strong>${st.label}</strong></td></tr></table>
       ${it.observacao ? `<div style="color:#666;font-size:12px;margin-top:3px;">${escapeHTML(it.observacao)}</div>` : ''}
       ${fotos ? `<div style="display:flex;gap:8px;margin-top:6px;">${fotos}</div>` : ''}
     </div>`;
