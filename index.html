@@ -7,6 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <script src="https://alcdn.msauth.net/browser/2.35.0/js/msal-browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.2.1/jspdf.umd.min.js"></script>
 <style>
 :root{
   --bg:#F5F3F1;
@@ -313,6 +315,7 @@ let state = {
   loading: true,
   search: '',
   filterStatus: 'todos',
+  checklistFiltroTecnico: 'todos',
   loginError: '',
   theme: 'light'
 };
@@ -379,9 +382,23 @@ async function saveContratos(){ try{ await graphPutFile(STORE.contratos, JSON.st
 async function saveUsuarios(){ try{ await graphPutFile(STORE.usuarios, JSON.stringify(state.usuarios)); }catch(e){ toast('Erro ao salvar usuários no OneDrive'); } }
 async function saveEmpresa(){ try{ await graphPutFile(STORE.empresa, JSON.stringify(state.empresa)); }catch(e){} }
 
-async function savePhoto(key, dataUrl){ try{ await graphPutFile('fotos_'+key+'.txt', dataUrl); return true; }catch(e){ toast('Erro ao salvar foto no OneDrive (tente uma imagem menor)'); return false; } }
-async function getPhoto(key){ try{ return await graphGetFile('fotos_'+key+'.txt'); }catch(e){ return null; } }
-async function deletePhoto(key){ try{ await graphDeleteFile('fotos_'+key+'.txt'); }catch(e){} }
+/* Organiza os arquivos por cliente dentro do OneDrive: Clientes/<nome-do-cliente>-<id curto>/fotos/... */
+function slugify(s){
+  return (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40) || 'cliente';
+}
+function clientFolderPath(clienteId){
+  const c = state.clientes.find(x=>x.id===clienteId);
+  const nome = c ? slugify(c.nome) : 'sem-cliente';
+  const sufixo = (clienteId||'geral').slice(-6);
+  return `Clientes/${nome}-${sufixo}`;
+}
+/* savePhoto agora recebe o clienteId, organiza a foto na pasta desse cliente, e RETORNA o caminho (chave) gerado — precisa ser guardado no registro do orçamento/checklist */
+async function savePhoto(dataUrl, clienteId){
+  const key = `${clientFolderPath(clienteId)}/fotos/${uid()}.txt`;
+  try{ await graphPutFile(key, dataUrl); return key; }catch(e){ toast('Erro ao salvar foto no OneDrive (tente uma imagem menor)'); return null; }
+}
+async function getPhoto(key){ try{ return await graphGetFile(key); }catch(e){ return null; } }
+async function deletePhoto(key){ try{ await graphDeleteFile(key); }catch(e){} }
 
 /* =======================================================================
    CONEXÃO COM O ONEDRIVE (Microsoft Graph + MSAL.js)
@@ -433,7 +450,7 @@ async function getGraphToken(){
 async function graphGetFile(filename){
   const token = await getGraphToken();
   const resp = await fetch(`https://graph.microsoft.com/v1.0/me/drive/special/approot:/${encodeURIComponent(filename)}:/content`, {
-    headers:{ Authorization:'Bearer '+token }
+    headers:{ Authorization:'Bearer '+token }, cache:'no-store'
   });
   if(resp.status===404) return null;
   if(!resp.ok) throw new Error('Falha ao ler '+filename+' no OneDrive');
@@ -442,7 +459,7 @@ async function graphGetFile(filename){
 async function graphPutFile(filename, contentString){
   const token = await getGraphToken();
   const resp = await fetch(`https://graph.microsoft.com/v1.0/me/drive/special/approot:/${encodeURIComponent(filename)}:/content`, {
-    method:'PUT', headers:{ Authorization:'Bearer '+token, 'Content-Type':'text/plain' }, body: contentString
+    method:'PUT', headers:{ Authorization:'Bearer '+token, 'Content-Type':'text/plain' }, body: contentString, cache:'no-store'
   });
   if(!resp.ok) throw new Error('Falha ao salvar '+filename+' no OneDrive');
 }
@@ -493,6 +510,8 @@ const ICONS = {
   pdf:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 3h8l4 4v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M15 3v4h4"/><path d="M12 17v-5M9.5 14.5 12 17l2.5-2.5"/></svg>',
   excel:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M3.5 9h17M9.5 9v11.5"/><path d="M6 12.5l3 3.5M9 12.5l-3 3.5"/></svg>',
   download:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v13m0 0-4.5-4.5M12 16l4.5-4.5"/><path d="M4 18v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></svg>',
+  phone:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4.5 3.5h3.2l1.6 4.3-2 1.6a12.3 12.3 0 0 0 5.3 5.3l1.6-2 4.3 1.6v3.2a1.5 1.5 0 0 1-1.6 1.5A16.5 16.5 0 0 1 3 5.1a1.5 1.5 0 0 1 1.5-1.6z"/></svg>',
+  folder:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3.5 6.5a1 1 0 0 1 1-1h4.5l1.8 2H19a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4.5a1 1 0 0 1-1-1z"/></svg>',
   sun:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v3M12 18.5v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2.5 12h3M18.5 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>',
   moon:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/></svg>',
 };
@@ -626,6 +645,7 @@ function bindConectarOneDriveEvents(){
 }
 function loginHTML(){
   const onlyDefaultAdmin = state.usuarios.length===1 && state.usuarios[0].login==='admin';
+  const account = msalInstance ? msalInstance.getActiveAccount() : null;
   return `
   <div class="login-screen">
     <button class="theme-toggle login-theme-toggle no-print" id="themeToggleBtn">${themeToggleIcon()}<span>${state.theme==='dark'?'Claro':'Escuro'}</span></button>
@@ -633,6 +653,10 @@ function loginHTML(){
       <div class="login-brand">
         <div class="logo-chip"><img src="${LOGO_DATA_URI}" alt="NOVYX"></div>
       </div>
+      ${account ? `<div class="login-hint" style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;">
+        <span>OneDrive conectado como <strong>${escapeHTML(account.username||'')}</strong></span>
+        <button class="icon-btn" id="trocarContaBtn" style="font-size:11.5px;text-decoration:underline;white-space:nowrap;">Trocar conta</button>
+      </div>` : ''}
       <div class="field"><label>Usuário</label><input type="text" id="loginUser" autocomplete="username" placeholder="seu login"></div>
       <div class="field"><label>Senha</label><input type="password" id="loginPass" autocomplete="current-password" placeholder="sua senha"></div>
       <button class="btn btn-primary btn-block" id="loginBtn">${ICONS.lock} Entrar</button>
@@ -693,6 +717,10 @@ function bindLoginEvents(){
   if(ttBtn) ttBtn.addEventListener('click', toggleTheme);
   const privacyBtn = document.getElementById('openPrivacyBtn');
   if(privacyBtn) privacyBtn.addEventListener('click', ()=>openModal(privacyNoticeHTML()));
+  const trocarContaBtn = document.getElementById('trocarContaBtn');
+  if(trocarContaBtn) trocarContaBtn.addEventListener('click', ()=>{
+    if(confirm('Isso vai desconectar o OneDrive deste aparelho. Você poderá entrar novamente escolhendo outra conta Microsoft. Continuar?')) desconectarOneDrive();
+  });
 }
 function doLogout(){ state.currentUser=null; state.role=null; state.view='dashboard'; clearTimeout(state._inactivityTimer); render(); }
 
@@ -917,7 +945,9 @@ function clienteDetailHTML(cliente){
         </div>
         <div style="font-size:13.5px;color:var(--ink-soft);margin-bottom:12px;"><strong style="color:var(--ink);">Endereço:</strong> ${enderecoLinha(cliente)}</div>
         ${fichaTecnicaLinha(cliente) ? `<div style="font-size:13.5px;color:var(--ink-soft);margin-bottom:12px;"><strong style="color:var(--ink);">Sistema instalado:</strong> ${fichaTecnicaLinha(cliente)}${cliente.tipoCameras? ' · '+escapeHTML(cliente.tipoCameras):''}</div>` : ''}
+        <div id="docCountBox" style="font-size:13px;color:var(--ink-soft);margin-bottom:14px;display:flex;align-items:center;gap:6px;">${ICONS.folder} Verificando documentos na pasta do OneDrive…</div>
         <div class="no-print" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;">
+          ${cliente.telefone ? `<a href="tel:${cliente.telefone.replace(/\D/g,'')}" class="btn btn-ghost btn-sm">${ICONS.phone} Ligar</a>` : ''}
           ${cliente.telefone ? `<button class="btn btn-ghost btn-sm" id="whatsappCliente">${ICONS.whatsapp} WhatsApp</button>` : ''}
           ${enderecoLinha(cliente)!=='—' ? `<button class="btn btn-ghost btn-sm" id="mapsCliente">${ICONS.map} Abrir no mapa</button>` : ''}
           <button class="btn btn-ghost btn-sm" id="dossieCliente">${ICONS.pdf} Baixar dossiê (PDF)</button>
@@ -1110,6 +1140,7 @@ function orcamentoDetailHTML(o){
           ${canEdit ? `<button class="btn btn-ghost btn-sm" id="editOrcFromDetail">Editar</button>` : ''}
           <button class="btn btn-ghost btn-sm" id="printOrc">Imprimir</button>
           <button class="btn btn-ghost btn-sm" id="pdfOrc">${ICONS.pdf} Baixar PDF</button>
+          ${cliente.telefone ? `<a href="tel:${cliente.telefone.replace(/\D/g,'')}" class="btn btn-ghost btn-sm">${ICONS.phone} Ligar</a>` : ''}
           <button class="btn btn-ghost btn-sm" id="whatsappOrc">${ICONS.whatsapp} Enviar por WhatsApp</button>
           ${enderecoLinha(cliente)!=='—' ? `<button class="btn btn-ghost btn-sm" id="mapsOrc">${ICONS.map} Abrir no mapa</button>` : ''}
           ${canApprove ? `<button class="btn btn-signal btn-sm" id="approveOrc">Aprovar orçamento</button><button class="btn btn-danger-ghost btn-sm" id="rejectOrc">Recusar</button>` : ''}
@@ -1127,11 +1158,20 @@ const STATUS_ITEM = {ok:{label:'OK', cls:'on-ok', led:'led-green'}, pendencia:{l
 
 function checklistsHTML(){
   let list = state.checklists.slice();
+  const tecnicos = Array.from(new Set(state.checklists.map(k=>k.tecnico).filter(Boolean))).sort();
+  if(state.checklistFiltroTecnico && state.checklistFiltroTecnico!=='todos'){
+    list = list.filter(k=>k.tecnico===state.checklistFiltroTecnico);
+  }
   list.sort((a,b)=>b.criadoEm-a.criadoEm);
 
   return `
   <div class="section-head">
-    <div class="toolbar"></div>
+    <div class="toolbar">
+      ${tecnicos.length>0 ? `<select id="filtroTecnico" style="width:180px;">
+        <option value="todos">Todos os técnicos</option>
+        ${tecnicos.map(t=>`<option value="${escapeAttr(t)}" ${state.checklistFiltroTecnico===t?'selected':''}>${escapeHTML(t)}</option>`).join('')}
+      </select>` : ''}
+    </div>
     <div style="display:flex;gap:8px;">
       <button class="btn btn-ghost" id="exportChecklistsBtn">${ICONS.excel} Excel</button>
       <button class="btn btn-primary" id="novoCheckBtn">${ICONS.plus} Novo checklist</button>
@@ -1293,6 +1333,7 @@ function checklistDetailHTML(k){
           <button class="btn btn-ghost btn-sm" id="editCheckFromDetail">Editar</button>
           <button class="btn btn-ghost btn-sm" id="printCheck">Imprimir</button>
           <button class="btn btn-ghost btn-sm" id="pdfCheck">${ICONS.pdf} Baixar PDF</button>
+          ${cliente.telefone ? `<a href="tel:${cliente.telefone.replace(/\D/g,'')}" class="btn btn-ghost btn-sm">${ICONS.phone} Ligar</a>` : ''}
           <button class="btn btn-ghost btn-sm" id="whatsappCheck">${ICONS.whatsapp} Enviar por WhatsApp</button>
           ${enderecoLinha(cliente)!=='—' ? `<button class="btn btn-ghost btn-sm" id="mapsCheck">${ICONS.map} Abrir no mapa</button>` : ''}
         </div>
@@ -1427,7 +1468,10 @@ function usuariosHTML(){
   return `
   <div class="section-head">
     <div class="toolbar" style="font-size:13px;color:var(--ink-soft);max-width:520px;">Cada perfil tem um nível de acesso diferente: administradores veem tudo, colaboradores não veem o reporte financeiro, e clientes só acessam os próprios orçamentos.</div>
-    <button class="btn btn-primary" id="novoUsuarioBtn">${ICONS.plus} Novo usuário</button>
+    <div style="display:flex;gap:8px;">
+      ${state.role==='admin' ? `<button class="btn btn-ghost" id="backupBtn">${ICONS.download} Backup completo</button>` : ''}
+      <button class="btn btn-primary" id="novoUsuarioBtn">${ICONS.plus} Novo usuário</button>
+    </div>
   </div>
   <div class="list">${list.map(u=>usuarioRowHTML(u)).join('')}</div>
   `;
@@ -1553,7 +1597,12 @@ async function checklistPrintContent(k){
     ${k.diagnosticoTecnico ? `<div style="font-size:13px;margin-bottom:10px;color:#111;"><strong>Diagnóstico técnico:</strong> ${escapeHTML(k.diagnosticoTecnico)}</div>` : ''}
     <div>${itensHTML}</div>
     ${k.recomendacoes ? `<div style="font-size:13px;margin-top:14px;color:#111;"><strong>Recomendações:</strong><br>${escapeHTML(k.recomendacoes)}</div>` : ''}
-    ${k.assinaturaCliente ? `<div style="margin-top:16px;"><div style="font-size:11px;color:#888;margin-bottom:4px;">Assinatura do cliente</div><img src="${k.assinaturaCliente}" style="max-width:220px;border:1px solid #ddd;border-radius:6px;"></div>` : ''}
+    ${k.assinaturaCliente ? `<div style="margin-top:28px;padding-top:20px;border-top:2px solid #0D0D0D;">
+      <div style="font-weight:700;font-size:13px;text-transform:uppercase;color:#0D0D0D;margin-bottom:10px;">Termo de conclusão de serviço</div>
+      <div style="font-size:12.5px;color:#444;margin-bottom:18px;">Eu, abaixo assinado(a), confirmo que o serviço descrito neste documento foi realizado a contento em ${fmtDate(k.data)}.</div>
+      <img src="${k.assinaturaCliente}" style="max-width:280px;display:block;border-bottom:1px solid #999;padding-bottom:6px;margin-bottom:6px;">
+      <div style="font-size:12px;color:#666;">${escapeHTML(cliente.nome)} — assinatura do cliente</div>
+    </div>` : ''}
   `;
 }
 function contratoPrintContent(contrato){
@@ -1630,9 +1679,111 @@ function waLink(telefone, texto){
   return `${base}?text=${encodeURIComponent(texto)}`;
 }
 
-/* ---------------------- Impressão / PDF (100% nativo do navegador, sem bibliotecas externas) ----------------------
-   Usa a caixa de impressão do próprio navegador (window.print). Isso funciona offline, sem CSP/bloqueios,
-   e permite ao usuário escolher "Salvar como PDF" como impressora — gerando um PDF de verdade, com texto selecionável. */
+/* ---------------------- Geração de PDF real (arquivo de verdade, salvo também na pasta do cliente no OneDrive) ---------------------- */
+async function gerarPdfBlob(innerHTML){
+  const old = document.querySelector('.print-temp');
+  if(old) old.remove();
+  const div = document.createElement('div');
+  div.className = 'print-temp';
+  div.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;background:#fff;';
+  div.innerHTML = innerHTML;
+  document.body.appendChild(div);
+  await new Promise(r=>setTimeout(r,80)); // garante que as imagens/fotos já carregaram no DOM
+  const canvas = await html2canvas(div, {scale:2, backgroundColor:'#ffffff', useCORS:true});
+  div.remove();
+  const imgData = canvas.toDataURL('image/jpeg', 0.92);
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF('p','mm','a4');
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const imgW = pageW;
+  const imgH = canvas.height * imgW / canvas.width;
+  let heightLeft = imgH, position = 0;
+  pdf.addImage(imgData,'JPEG',0,position,imgW,imgH);
+  heightLeft -= pageH;
+  while(heightLeft > 0){
+    position = heightLeft - imgH;
+    pdf.addPage();
+    pdf.addImage(imgData,'JPEG',0,position,imgW,imgH);
+    heightLeft -= pageH;
+  }
+  return pdf.output('blob');
+}
+async function graphPutBlob(filename, blob){
+  const token = await getGraphToken();
+  const resp = await fetch(`https://graph.microsoft.com/v1.0/me/drive/special/approot:/${encodeURIComponent(filename)}:/content`, {
+    method:'PUT', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/pdf' }, body: blob, cache:'no-store'
+  });
+  if(!resp.ok) throw new Error('Falha ao salvar '+filename+' no OneDrive');
+}
+/* Lista os arquivos de uma pasta do OneDrive (usado no contador de documentos do cliente) */
+async function listarArquivos(pastaPath){
+  try{
+    const token = await getGraphToken();
+    const resp = await fetch(`https://graph.microsoft.com/v1.0/me/drive/special/approot:/${encodeURIComponent(pastaPath)}:/children`, {
+      headers:{ Authorization:'Bearer '+token }, cache:'no-store'
+    });
+    if(!resp.ok) return [];
+    const data = await resp.json();
+    return data.value || [];
+  }catch(e){ return []; }
+}
+async function contarDocumentosCliente(clienteId){
+  const arquivos = await listarArquivos(`${clientFolderPath(clienteId)}/documentos`);
+  return arquivos.length;
+}
+/* Backup completo: gera um .json com todos os dados de negócio, salva no OneDrive (pasta Backups) e baixa uma cópia local */
+async function gerarBackupCompleto(){
+  toast('Gerando backup…');
+  try{
+    const payload = {
+      geradoEm: new Date().toISOString(),
+      empresa: state.empresa,
+      clientes: state.clientes,
+      orcamentos: state.orcamentos,
+      checklists: state.checklists,
+      contratos: state.contratos,
+    };
+    const json = JSON.stringify(payload, null, 2);
+    const filename = `Backup-${todayISO()}.json`;
+    await graphPutFile(`Backups/${filename}`, json);
+    const blob = new Blob([json], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+    toast('Backup salvo no OneDrive (pasta Backups) e baixado');
+  }catch(e){ toast('Erro ao gerar backup'); }
+}
+/* Gera o PDF, salva na pasta do cliente no OneDrive e também baixa localmente (botão "Baixar PDF") */
+async function baixarESalvarPDF(innerHTMLPromiseOrString, clienteId, nomeArquivo){
+  toast('Gerando PDF…');
+  try{
+    const html = await Promise.resolve(innerHTMLPromiseOrString);
+    const blob = await gerarPdfBlob(html);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = nomeArquivo;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+    if(clienteId){
+      await graphPutBlob(`${clientFolderPath(clienteId)}/documentos/${nomeArquivo}`, blob);
+      toast('PDF baixado e salvo na pasta do cliente no OneDrive');
+    }else{
+      toast('PDF baixado');
+    }
+  }catch(e){ toast('Erro ao gerar o PDF'); }
+}
+/* Salva um PDF na pasta do cliente em segundo plano, sem baixar nem interromper o fluxo — chamada automaticamente sempre que um registro é salvo */
+async function salvarPdfEmSegundoPlano(innerHTMLPromiseOrString, clienteId, nomeArquivo){
+  if(!clienteId) return;
+  try{
+    const html = await Promise.resolve(innerHTMLPromiseOrString);
+    const blob = await gerarPdfBlob(html);
+    await graphPutBlob(`${clientFolderPath(clienteId)}/documentos/${nomeArquivo}`, blob);
+  }catch(e){ /* falha silenciosa: não deve interromper o fluxo de salvar o registro */ }
+}
+
+/* ---------------------- Impressão nativa do navegador (botão "Imprimir", 100% offline, sem bibliotecas) ---------------------- */
 function printHTML(innerHTML){
   const old = document.getElementById('printArea');
   if(old && old.classList.contains('print-temp')) old.remove();
@@ -1645,10 +1796,6 @@ function printHTML(innerHTML){
     window.print();
     setTimeout(()=>{ if(div.parentNode) div.remove(); }, 800);
   }, 60);
-}
-function baixarPDF(innerHTMLPromiseOrString, tipoLabel){
-  toast('Preparando documento… escolha "Salvar como PDF" na janela de impressão.');
-  Promise.resolve(innerHTMLPromiseOrString).then(html=>{ printHTML(html); }).catch(()=>toast('Erro ao preparar o '+ (tipoLabel||'documento')));
 }
 
 /* ---------------------- Exportação: planilha (.csv nativo, abre direto no Excel/Sheets, sem bibliotecas externas) ---------------------- */
@@ -1867,9 +2014,17 @@ function bindGlobalEvents(){
   });
   if(novoClienteBtn) novoClienteBtn.addEventListener('click', ()=>openModal(clienteModalHTML()));
   document.querySelectorAll('[data-cliente-open]').forEach(el=>{
-    el.addEventListener('click', ()=>{
+    el.addEventListener('click', async ()=>{
       const c = state.clientes.find(x=>x.id===el.getAttribute('data-cliente-open'));
-      if(c) openModal(clienteDetailHTML(c));
+      if(!c) return;
+      openModal(clienteDetailHTML(c));
+      const box = document.getElementById('docCountBox');
+      if(box){
+        const n = await contarDocumentosCliente(c.id);
+        box.innerHTML = n>0
+          ? `${ICONS.folder} <strong style="color:var(--ink);">${n}</strong> documento(s) na pasta do OneDrive`
+          : `${ICONS.folder} Nenhum documento gerado ainda para este cliente`;
+      }
     });
   });
 
@@ -1895,8 +2050,12 @@ function bindGlobalEvents(){
   const novoCheckBtn = document.getElementById('novoCheckBtn');
   const exportChecklistsBtn = document.getElementById('exportChecklistsBtn');
   if(exportChecklistsBtn) exportChecklistsBtn.addEventListener('click', ()=>{
-    exportarExcel(checklistsExportRows(state.checklists), 'Checklists.xlsx', 'Checklists');
+    let list = state.checklists.slice();
+    if(state.checklistFiltroTecnico && state.checklistFiltroTecnico!=='todos') list = list.filter(k=>k.tecnico===state.checklistFiltroTecnico);
+    exportarExcel(checklistsExportRows(list), 'Checklists.xlsx', 'Checklists');
   });
+  const filtroTecnico = document.getElementById('filtroTecnico');
+  if(filtroTecnico) filtroTecnico.addEventListener('change', e=>{ state.checklistFiltroTecnico = e.target.value; render(); });
   if(novoCheckBtn) novoCheckBtn.addEventListener('click', ()=>{
     if(state.clientes.length===0){ toast('Cadastre um cliente antes de criar um checklist'); return; }
     openModal(checklistFormHTML());
@@ -1924,6 +2083,8 @@ function bindGlobalEvents(){
     });
   });
 
+  const backupBtn = document.getElementById('backupBtn');
+  if(backupBtn) backupBtn.addEventListener('click', gerarBackupCompleto);
   const novoUsuarioBtn = document.getElementById('novoUsuarioBtn');
   if(novoUsuarioBtn) novoUsuarioBtn.addEventListener('click', ()=>{
     if(perfilOptionsForCreator().length===0){ toast('Seu perfil não pode criar usuários'); return; }
@@ -2040,7 +2201,7 @@ function bindModalEvents(){
   if(dossieClienteBtn) dossieClienteBtn.addEventListener('click', ()=>{
     const id = overlay.getAttribute('data-cliente-detail-id');
     const c = state.clientes.find(x=>x.id===id);
-    if(c) baixarPDF(clienteDossiePrintContent(c), 'dossiê do cliente');
+    if(c) baixarESalvarPDF(clienteDossiePrintContent(c), c.id, `Dossie-${slugify(c.nome)}.pdf`);
   });
 
   /* --- Orçamento: itens dinâmicos + totais ao vivo --- */
@@ -2135,7 +2296,7 @@ function bindModalEvents(){
 
     saveOrcBtn.disabled = true; saveOrcBtn.textContent = 'Salvando…';
     const fotos = overlay._getFotosAntes ? overlay._getFotosAntes() : [];
-    for(const f of fotos){ if(f.isNew) await savePhoto(f.key, f.dataUrl); }
+    for(const f of fotos){ if(f.isNew){ const novaKey = await savePhoto(f.dataUrl, clienteId); if(novaKey) f.key = novaKey; } }
 
     const editId = overlay.getAttribute('data-edit-id');
     const data = {
@@ -2144,13 +2305,17 @@ function bindModalEvents(){
       observacoes:document.getElementById('f_observacoes').value.trim(),
       fotosAntes: fotos.map(f=>f.key),
     };
+    let orcamentoSalvo;
     if(editId){
       const idx = state.orcamentos.findIndex(o=>o.id===editId);
       state.orcamentos[idx] = {...state.orcamentos[idx], ...data};
+      orcamentoSalvo = state.orcamentos[idx];
     }else{
-      state.orcamentos.push({id:uid(), numero:nextNumero('orcamentos'), criadoEm:Date.now(), ...data});
+      orcamentoSalvo = {id:uid(), numero:nextNumero('orcamentos'), criadoEm:Date.now(), ...data};
+      state.orcamentos.push(orcamentoSalvo);
     }
     await saveOrcamentos(); closeModalEl(); render(); toast('Orçamento salvo com sucesso');
+    salvarPdfEmSegundoPlano(orcamentoPrintContent(orcamentoSalvo), clienteId, `Orcamento-${orcamentoSalvo.numero}.pdf`);
   });
   const delOrcBtn = document.getElementById('delOrc');
   if(delOrcBtn) delOrcBtn.addEventListener('click', async ()=>{
@@ -2170,7 +2335,7 @@ function bindModalEvents(){
   const pdfOrcBtn = document.getElementById('pdfOrc');
   if(pdfOrcBtn) pdfOrcBtn.addEventListener('click', ()=>{
     const id = overlay.getAttribute('data-orc-detail-id'); const o = state.orcamentos.find(x=>x.id===id);
-    baixarPDF(orcamentoPrintContent(o), 'orçamento');
+    baixarESalvarPDF(orcamentoPrintContent(o), o.clienteId, `Orcamento-${o.numero}.pdf`);
   });
   const whatsappOrcBtn = document.getElementById('whatsappOrc');
   if(whatsappOrcBtn) whatsappOrcBtn.addEventListener('click', ()=>{
@@ -2258,10 +2423,11 @@ function bindModalEvents(){
         const box = input.closest('.photo-box');
         box.innerHTML = '<span style="font-size:10px;">Processando…</span>';
         const dataUrl = await compressAndStampImage(input.files[0]);
-        const key = uid();
-        const ok = await savePhoto(key, dataUrl);
+        const clienteIdAtual = document.getElementById('f_cliente') ? document.getElementById('f_cliente').value : '';
+        const key = await savePhoto(dataUrl, clienteIdAtual);
+        const ok = !!key;
         box.innerHTML = `<img src="${dataUrl}"><button class="photo-remove" type="button">${ICONS.close}</button>`;
-        box.setAttribute('data-photo-key', key);
+        if(key) box.setAttribute('data-photo-key', key);
         box.setAttribute('data-photo-newly-saved', ok ? '1':'0');
         const slot = input.getAttribute('data-slot');
         box.querySelector('.photo-remove').onclick = (ev)=>{ ev.stopPropagation(); box.removeAttribute('data-photo-key'); box.innerHTML = ICONS.camera + `<input type="file" accept="image/*" capture="environment" class="photoInput" data-slot="${slot}">`; bindStepEvents(); };
@@ -2322,13 +2488,17 @@ function bindModalEvents(){
       itens, assinaturaCliente: assinatura,
       orcamentoId: orcSel ? orcSel.value : (editId ? (state.checklists.find(c=>c.id===editId)||{}).orcamentoId : ''),
     };
+    let checklistSalvo;
     if(editId){
       const idx = state.checklists.findIndex(c=>c.id===editId);
       state.checklists[idx] = {...state.checklists[idx], ...data};
+      checklistSalvo = state.checklists[idx];
     }else{
-      state.checklists.push({id:uid(), numero:nextNumero('checklists'), criadoEm:Date.now(), ...data});
+      checklistSalvo = {id:uid(), numero:nextNumero('checklists'), criadoEm:Date.now(), ...data};
+      state.checklists.push(checklistSalvo);
     }
     await saveChecklists(); closeModalEl(); render(); toast('Checklist salvo com sucesso');
+    salvarPdfEmSegundoPlano(checklistPrintContent(checklistSalvo), clienteId, `Checklist-${checklistSalvo.numero}.pdf`);
   });
   const delCheckBtn = document.getElementById('delCheck');
   if(delCheckBtn) delCheckBtn.addEventListener('click', async ()=>{
@@ -2346,7 +2516,7 @@ function bindModalEvents(){
   const pdfCheckBtn = document.getElementById('pdfCheck');
   if(pdfCheckBtn) pdfCheckBtn.addEventListener('click', ()=>{
     const id = overlay.getAttribute('data-check-detail-id'); const k = state.checklists.find(x=>x.id===id);
-    baixarPDF(checklistPrintContent(k), 'checklist');
+    baixarESalvarPDF(checklistPrintContent(k), k.clienteId, `Checklist-${k.numero}.pdf`);
   });
   const whatsappCheckBtn = document.getElementById('whatsappCheck');
   if(whatsappCheckBtn) whatsappCheckBtn.addEventListener('click', ()=>{
@@ -2380,13 +2550,17 @@ function bindModalEvents(){
       ativo: document.getElementById('f_ativo').checked,
     };
     const editId = overlay.getAttribute('data-edit-id');
+    let contratoSalvo;
     if(editId){
       const idx = state.contratos.findIndex(c=>c.id===editId);
       state.contratos[idx] = {...state.contratos[idx], ...data};
+      contratoSalvo = state.contratos[idx];
     }else{
-      state.contratos.push({id:uid(), criadoEm:Date.now(), ...data});
+      contratoSalvo = {id:uid(), criadoEm:Date.now(), ...data};
+      state.contratos.push(contratoSalvo);
     }
     await saveContratos(); closeModalEl(); render(); toast('Contrato salvo com sucesso');
+    salvarPdfEmSegundoPlano(contratoPrintContent(contratoSalvo), clienteId, `Contrato-${slugify(contratoSalvo.tipoServico)}-${contratoSalvo.dataUltimoServico}.pdf`);
   });
   const delContratoBtn = document.getElementById('delContrato');
   if(delContratoBtn) delContratoBtn.addEventListener('click', async ()=>{
@@ -2412,7 +2586,7 @@ function bindModalEvents(){
   const pdfContratoBtn = document.getElementById('pdfContrato');
   if(pdfContratoBtn) pdfContratoBtn.addEventListener('click', ()=>{
     const editId = overlay.getAttribute('data-edit-id'); const contrato = state.contratos.find(c=>c.id===editId);
-    if(contrato) baixarPDF(contratoPrintContent(contrato), 'contrato');
+    if(contrato) baixarESalvarPDF(contratoPrintContent(contrato), contrato.clienteId, `Contrato-${slugify(contrato.tipoServico)}-${contrato.dataUltimoServico}.pdf`);
   });
   const whatsappContratoBtn = document.getElementById('whatsappContrato');
   if(whatsappContratoBtn) whatsappContratoBtn.addEventListener('click', ()=>{
