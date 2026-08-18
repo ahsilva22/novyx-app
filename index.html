@@ -298,6 +298,7 @@ const STORE = {
   orcamentos: 'orcamentos.json',
   checklists: 'checklists.json',
   contratos: 'contratos.json',
+  equipamentos: 'equipamentos.json',
   usuarios: 'usuarios.json',
   empresa: 'empresa.json'
 };
@@ -310,12 +311,14 @@ let state = {
   orcamentos: [],
   checklists: [],
   contratos: [],
+  equipamentos: [],
   usuarios: [],
   empresa: { nome: 'NOVYX' },
   loading: true,
   search: '',
   filterStatus: 'todos',
   checklistFiltroTecnico: 'todos',
+  agendaData: '', // preenchido com a data de hoje na primeira renderização
   loginError: '',
   theme: 'light'
 };
@@ -348,6 +351,7 @@ async function loadAll(){
   try{ const o = await safeGet(STORE.orcamentos); state.orcamentos = o ? JSON.parse(o.value) : []; }catch(e){ state.orcamentos = []; }
   try{ const ck = await safeGet(STORE.checklists); state.checklists = ck ? JSON.parse(ck.value) : []; }catch(e){ state.checklists = []; }
   try{ const ct = await safeGet(STORE.contratos); state.contratos = ct ? JSON.parse(ct.value) : []; }catch(e){ state.contratos = []; }
+  try{ const eq = await safeGet(STORE.equipamentos); state.equipamentos = eq ? JSON.parse(eq.value) : []; }catch(e){ state.equipamentos = []; }
   try{ const u = await safeGet(STORE.usuarios); state.usuarios = u ? JSON.parse(u.value) : []; }catch(e){ state.usuarios = []; }
   try{ const emp = await safeGet(STORE.empresa); if(emp) state.empresa = JSON.parse(emp.value); }catch(e){}
 
@@ -389,6 +393,7 @@ async function saveClientes(){ try{ await graphPutFile(STORE.clientes, JSON.stri
 async function saveOrcamentos(){ try{ await graphPutFile(STORE.orcamentos, JSON.stringify(state.orcamentos)); }catch(e){ toast('Erro ao salvar orçamentos no OneDrive'); } }
 async function saveChecklists(){ try{ await graphPutFile(STORE.checklists, JSON.stringify(state.checklists)); }catch(e){ toast('Erro ao salvar checklists no OneDrive'); } }
 async function saveContratos(){ try{ await graphPutFile(STORE.contratos, JSON.stringify(state.contratos)); }catch(e){ toast('Erro ao salvar contratos no OneDrive'); } }
+async function saveEquipamentos(){ try{ await graphPutFile(STORE.equipamentos, JSON.stringify(state.equipamentos)); }catch(e){ toast('Erro ao salvar equipamentos no OneDrive'); } }
 async function saveUsuarios(){ try{ await graphPutFile(STORE.usuarios, JSON.stringify(state.usuarios)); }catch(e){ toast('Erro ao salvar usuários no OneDrive'); } }
 async function saveEmpresa(){ try{ await graphPutFile(STORE.empresa, JSON.stringify(state.empresa)); }catch(e){} }
 
@@ -517,9 +522,10 @@ async function excluirClienteCompleto(clienteId){
   state.orcamentos = state.orcamentos.filter(o=>o.clienteId!==clienteId);
   state.checklists = state.checklists.filter(k=>k.clienteId!==clienteId);
   state.contratos = state.contratos.filter(c=>c.clienteId!==clienteId);
+  state.equipamentos = state.equipamentos.filter(e=>e.clienteId!==clienteId);
   state.usuarios = state.usuarios.filter(u=>!(u.perfil==='cliente' && u.clienteId===clienteId));
   state.clientes = state.clientes.filter(c=>c.id!==clienteId);
-  await Promise.all([saveOrcamentos(), saveChecklists(), saveContratos(), saveUsuarios(), saveClientes()]);
+  await Promise.all([saveOrcamentos(), saveChecklists(), saveContratos(), saveEquipamentos(), saveUsuarios(), saveClientes()]);
 }
 
 /* ---------------------- Ícones ---------------------- */
@@ -547,6 +553,10 @@ const ICONS = {
   phone:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4.5 3.5h3.2l1.6 4.3-2 1.6a12.3 12.3 0 0 0 5.3 5.3l1.6-2 4.3 1.6v3.2a1.5 1.5 0 0 1-1.6 1.5A16.5 16.5 0 0 1 3 5.1a1.5 1.5 0 0 1 1.5-1.6z"/></svg>',
   mail:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M4 6.5 12 13l8-6.5"/></svg>',
   folder:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3.5 6.5a1 1 0 0 1 1-1h4.5l1.8 2H19a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4.5a1 1 0 0 1-1-1z"/></svg>',
+  camera2:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7H8l1.2-2h5.6L16 7h2.5A1.5 1.5 0 0 1 20 8.5v9A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="12.5" r="3.3"/></svg>',
+  agenda:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3.5" y="5" width="17" height="16" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><circle cx="8.5" cy="14" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="14" r="1.1" fill="currentColor" stroke="none"/><circle cx="8.5" cy="17.3" r="1.1" fill="currentColor" stroke="none"/></svg>',
+  star:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/></svg>',
+  bell:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9a6 6 0 0 1 12 0c0 4 1.5 5.5 2 6H4c.5-.5 2-2 2-6z"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0"/></svg>',
   sun:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v3M12 18.5v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2.5 12h3M18.5 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>',
   moon:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/></svg>',
 };
@@ -600,6 +610,7 @@ function navItemsForRole(role){
   if(role==='cliente') return [{id:'orcamentos', label:'Meus orçamentos', icon:ICONS.orcamentos}];
   const base = [
     {id:'dashboard', label:'Painel', icon:ICONS.dashboard},
+    {id:'agenda', label:'Agenda', icon:ICONS.agenda},
     {id:'clientes', label:'Clientes', icon:ICONS.clientes},
     {id:'orcamentos', label:'Orçamentos', icon:ICONS.orcamentos},
     {id:'checklists', label:'Checklists', icon:ICONS.checklists},
@@ -797,7 +808,7 @@ function bottomNavHTML(){
   return `<div class="bottom-nav no-print">${items.map(i=>`<button class="bn-item ${state.view===i.id?'active':''}" data-nav="${i.id}">${i.icon}<span>${i.label}</span></button>`).join('')}</div>`;
 }
 function topbarHTML(){
-  const titles = {dashboard:'Painel geral', clientes:'Clientes', orcamentos: state.role==='cliente'?'Meus orçamentos':'Orçamentos', checklists:'Checklists de serviço', contratos:'Contratos de manutenção', usuarios:'Usuários e perfis de acesso'};
+  const titles = {dashboard:'Painel geral', agenda:'Agenda de atendimentos', clientes:'Clientes', orcamentos: state.role==='cliente'?'Meus orçamentos':'Orçamentos', checklists:'Checklists de serviço', contratos:'Contratos de manutenção', usuarios:'Usuários e perfis de acesso'};
   const roleLabel = {admin:'Administrador', colaborador:'Colaborador', cliente:'Cliente'}[state.role];
   return `
   <div class="topbar no-print">
@@ -811,6 +822,7 @@ function topbarHTML(){
 
 function viewHTML(){
   if(state.view==='dashboard') return dashboardHTML();
+  if(state.view==='agenda') return agendaHTML();
   if(state.view==='clientes') return clientesHTML();
   if(state.view==='orcamentos') return orcamentosHTML();
   if(state.view==='checklists') return checklistsHTML();
@@ -856,6 +868,61 @@ function emptyState(title, sub){
   return `<div class="card empty">${ICONS.empty}<div class="t">${title}</div><div>${sub}</div></div>`;
 }
 
+/* =======================================================================
+   AGENDA — o que está previsto para um dia, agrupado por técnico
+   ======================================================================= */
+function agendaHTML(){
+  if(!state.agendaData) state.agendaData = todayISO();
+  const dataRef = state.agendaData;
+  const checksDoDia = state.checklists.filter(k=>k.data===dataRef);
+  const orcsDoDia = state.orcamentos.filter(o=>o.data===dataRef);
+
+  const porTecnico = {};
+  checksDoDia.forEach(k=>{
+    const t = k.tecnico || 'Sem técnico definido';
+    (porTecnico[t] = porTecnico[t]||[]).push(k);
+  });
+  Object.values(porTecnico).forEach(lista=>lista.sort((a,b)=>(a.horaInicio||'99').localeCompare(b.horaInicio||'99')));
+  const tecnicosOrdenados = Object.keys(porTecnico).sort();
+
+  const hojeLabel = dataRef===todayISO() ? ' (hoje)' : '';
+
+  return `
+  <div class="section-head">
+    <div class="toolbar" style="align-items:center;gap:10px;">
+      <button class="btn btn-ghost btn-sm" id="agendaAnteriorBtn">${ICONS.chevron.replace('m9 18 6-6-6-6','m15 18-6-6 6-6')}</button>
+      <input type="date" id="agendaDataInput" value="${dataRef}" style="width:170px;">
+      <button class="btn btn-ghost btn-sm" id="agendaProximoBtn">${ICONS.chevron}</button>
+      <button class="btn btn-ghost btn-sm" id="agendaHojeBtn">Hoje</button>
+      <span style="font-size:13px;color:var(--ink-soft);">${fmtDate(dataRef)}${hojeLabel}</span>
+    </div>
+  </div>
+
+  ${orcsDoDia.length ? `<div class="card" style="margin-bottom:16px;">
+    <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);margin-bottom:8px;">Orçamentos/visitas com data neste dia (${orcsDoDia.length})</div>
+    <div class="list">${orcsDoDia.map(o=>orcamentoRowHTML(o)).join('')}</div>
+  </div>` : ''}
+
+  ${tecnicosOrdenados.length===0 ? emptyState('Nada agendado para este dia', 'Nenhum checklist com essa data. Crie um checklist e defina a data do atendimento para ele aparecer aqui.') :
+    tecnicosOrdenados.map(tec=>`
+      <div class="section-head" style="margin-bottom:8px;margin-top:6px;">
+        <h2 style="font-size:15px;">${ICONS.agenda} ${escapeHTML(tec)}</h2>
+        <span class="badge badge-gray">${porTecnico[tec].length} atendimento(s)</span>
+      </div>
+      <div class="list" style="margin-bottom:18px;">${porTecnico[tec].map(k=>{
+        const cliente = state.clientes.find(c=>c.id===k.clienteId);
+        const horario = k.horaInicio ? k.horaInicio+(k.horaFim?'–'+k.horaFim:'') : 'sem horário definido';
+        return `<div class="list-item" data-check-open="${k.id}">
+          <div class="li-main">
+            <div class="li-title"><span class="mono" style="color:var(--ink-faint);font-size:12.5px;">${horario}</span> ${cliente?escapeHTML(cliente.nome):'Cliente removido'} — ${escapeHTML(k.tipoServico)}</div>
+            <div class="li-sub">#${k.numero} · ${escapeHTML(k.natureza||'')}</div>
+          </div>
+          <div class="li-right">${ICONS.chevron}</div>
+        </div>`;
+      }).join('')}</div>
+    `).join('')}
+  `;
+}
 /* =======================================================================
    CLIENTES
    ======================================================================= */
@@ -1009,10 +1076,25 @@ function enderecoSelectHTML(clienteId, selectedId){
     <select id="f_endereco">${c.enderecos.map(e=>`<option value="${e.id}" ${selectedId===e.id?'selected':''}>${escapeHTML(e.label||'Endereço')} — ${escapeHTML(enderecoLinha(e))}</option>`).join('')}</select>
   </div>`;
 }
+function equipamentosSelectHTML(clienteId, selectedIds){
+  if(!clienteId) return '';
+  const equips = equipamentosDoCliente(clienteId);
+  if(equips.length===0) return '';
+  const sel = Array.isArray(selectedIds) ? selectedIds : [];
+  return `<div class="field"><label>Equipamento(s) atendidos nesta visita (opcional)</label>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+      ${equips.map(eq=>`<label style="display:inline-flex;align-items:center;gap:5px;background:var(--surface-alt);border:1px solid var(--line-soft);border-radius:20px;padding:5px 11px;font-size:12.5px;font-weight:600;cursor:pointer;">
+        <input type="checkbox" class="equip-checkbox" value="${eq.id}" ${sel.includes(eq.id)?'checked':''} style="width:auto;margin:0;">
+        ${escapeHTML(eq.tipo)}${eq.local?' — '+escapeHTML(eq.local):''}
+      </label>`).join('')}
+    </div>
+  </div>`;
+}
 
 function clienteDetailHTML(cliente){
   const orcs = state.orcamentos.filter(o=>o.clienteId===cliente.id).sort((a,b)=>b.criadoEm-a.criadoEm);
   const chks = state.checklists.filter(k=>k.clienteId===cliente.id).sort((a,b)=>b.criadoEm-a.criadoEm);
+  const equips = equipamentosDoCliente(cliente.id);
   return `
   <div class="overlay" id="modalOverlay" data-cliente-detail-id="${cliente.id}">
     <div class="modal wide">
@@ -1045,7 +1127,12 @@ function clienteDetailHTML(cliente){
         <h3 style="font-size:14.5px;margin-bottom:8px;">Orçamentos (${orcs.length})</h3>
         <div class="list" style="margin-bottom:20px;">${orcs.length? orcs.map(o=>orcamentoRowHTML(o)).join('') : '<div class="li-sub" style="padding:6px 2px;">Nenhum orçamento para este cliente.</div>'}</div>
         <h3 style="font-size:14.5px;margin-bottom:8px;">Checklists (${chks.length})</h3>
-        <div class="list">${chks.length? chks.map(k=>checklistRowHTML(k)).join('') : '<div class="li-sub" style="padding:6px 2px;">Nenhum checklist para este cliente.</div>'}</div>
+        <div class="list" style="margin-bottom:20px;">${chks.length? chks.map(k=>checklistRowHTML(k)).join('') : '<div class="li-sub" style="padding:6px 2px;">Nenhum checklist para este cliente.</div>'}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <h3 style="font-size:14.5px;margin:0;">Equipamentos (${equips.length})</h3>
+          <button class="btn btn-ghost btn-sm no-print" id="novoEquipBtn">${ICONS.plus} Novo equipamento</button>
+        </div>
+        <div class="list">${equips.length? equips.map(eq=>equipamentoRowHTML(eq)).join('') : '<div class="li-sub" style="padding:6px 2px;">Nenhum equipamento cadastrado — cadastre câmeras, sensores ou centrais para ter o histórico de manutenção de cada um.</div>'}</div>
       </div>
     </div>
   </div>`;
@@ -1313,10 +1400,14 @@ function checklistFormHTML(check){
               ${state.clientes.map(c=>`<option value="${c.id}" ${k.clienteId===c.id?'selected':''}>${c.nome}</option>`).join('')}
             </select>
           </div>
-          <div class="field"><label>Técnico responsável</label><input type="text" id="f_tecnico" value="${escapeAttr(k.tecnico)}" placeholder="Nome do colaborador"></div>
+          <div class="field"><label>Técnico responsável</label>
+            <input type="text" id="f_tecnico" value="${escapeAttr(k.tecnico)}" placeholder="Selecione ou digite um nome" list="listaTecnicos">
+            <datalist id="listaTecnicos">${state.usuarios.filter(u=>u.perfil==='admin'||u.perfil==='colaborador').map(u=>`<option value="${escapeAttr(u.nome)}">`).join('')}</datalist>
+          </div>
         </div>
         <div id="clienteInfoContainer">${clienteInfoCardHTML(k.clienteId, k.enderecoId)}</div>
         <div id="enderecoSelectContainer">${enderecoSelectHTML(k.clienteId, k.enderecoId)}</div>
+        <div id="equipamentosSelectContainer">${equipamentosSelectHTML(k.clienteId, k.equipamentoIds)}</div>
         <div class="row2">
           <div class="field"><label>Tipo de serviço</label>
             <select id="f_tipoServico">${Object.keys(CHECKLIST_PRESETS).map(t=>`<option value="${t}" ${k.tipoServico===t?'selected':''}>${t}</option>`).join('')}</select>
@@ -1433,6 +1524,7 @@ function checklistDetailHTML(k){
           <button class="btn btn-ghost btn-sm" id="pdfCheck">${ICONS.pdf} Baixar PDF</button>
           ${cliente.telefone ? `<a href="tel:${cliente.telefone.replace(/\D/g,'')}" class="btn btn-ghost btn-sm">${ICONS.phone} Ligar</a>` : ''}
           <button class="btn btn-ghost btn-sm" id="whatsappCheck">${ICONS.whatsapp} Enviar por WhatsApp</button>
+          ${cliente.telefone ? `<button class="btn btn-ghost btn-sm" id="pesquisaSatisfacaoBtn">${ICONS.star} Pedir avaliação</button>` : ''}
           ${enderecoLinha(cliente)!=='—' ? `<button class="btn btn-ghost btn-sm" id="mapsCheck">${ICONS.map} Abrir no mapa</button>` : ''}
         </div>
         <div class="no-print" style="margin-top:8px;font-size:12px;color:var(--ink-faint);">Dica: o WhatsApp não permite anexar arquivos automaticamente por link — baixe o PDF primeiro e anexe manualmente na conversa que abrir.</div>
@@ -1500,6 +1592,7 @@ function contratoRowHTML(contrato){
   const periodo = PERIODICIDADES.find(p=>p.dias===Number(contrato.periodicidadeDias));
   const pontual = Number(contrato.periodicidadeDias)===0;
   const prox = proximaManutencao(contrato);
+  const precisaLembrete = !pontual && contrato.ativo && diasParaVencer(contrato)<=30 && cliente && cliente.telefone;
   return `
   <div class="list-item" data-contrato-open="${contrato.id}">
     <div class="li-main">
@@ -1507,10 +1600,17 @@ function contratoRowHTML(contrato){
       <div class="li-sub">${periodo ? periodo.label : contrato.periodicidadeDias+' dias'}${pontual? ' · realizado em '+fmtDate(contrato.dataUltimoServico) : ' · próxima manutenção: '+fmtDate(prox.toISOString().slice(0,10))}</div>
     </div>
     <div class="li-right">
+      ${precisaLembrete ? `<button class="btn btn-signal btn-sm" data-contrato-lembrete="${contrato.id}" title="Enviar lembrete de manutenção por WhatsApp">${ICONS.bell} Lembrete</button>` : ''}
       <span class="badge ${st.badge}"><span class="led ${st.led}"></span>${st.label}</span>
       ${ICONS.chevron}
     </div>
   </div>`;
+}
+
+function contratoLembreteText(contrato, cliente){
+  const dias = diasParaVencer(contrato);
+  const quando = dias<0 ? `venceu há ${Math.abs(dias)} dia(s)` : dias===0 ? 'vence hoje' : `vence em ${dias} dia(s)`;
+  return `Olá, ${cliente.nome}! Passando para lembrar que a manutenção (${contrato.tipoServico}) do seu sistema com a ${state.empresa.nome} ${quando}. Podemos agendar uma data? Ficamos à disposição! 😊`;
 }
 
 function contratoModalHTML(contrato){
@@ -1541,6 +1641,7 @@ function contratoModalHTML(contrato){
           <button class="btn btn-ghost btn-sm" id="printContrato">Imprimir</button>
           <button class="btn btn-ghost btn-sm" id="pdfContrato">${ICONS.pdf} Baixar PDF</button>
           <button class="btn btn-ghost btn-sm" id="whatsappContrato">${ICONS.whatsapp} Enviar por WhatsApp</button>
+          <button class="btn btn-signal btn-sm" id="lembreteContratoBtn">${ICONS.bell} Enviar lembrete de manutenção</button>
         </div>` : ''}
       </div>
       <div class="modal-foot">
@@ -1766,6 +1867,94 @@ function contratoPrintContent(contrato){
     </div>
   `;
 }
+
+/* =======================================================================
+   EQUIPAMENTOS — ficha por câmera/sensor/central, com histórico próprio
+   ======================================================================= */
+const TIPOS_EQUIPAMENTO = ['Câmera','DVR/NVR','Central de alarme','Sensor','Fechadura/Controle de acesso','Nobreak','Outro'];
+
+function equipamentosDoCliente(clienteId){
+  return state.equipamentos.filter(e=>e.clienteId===clienteId).sort((a,b)=>(a.local||'').localeCompare(b.local||''));
+}
+function checklistsDoEquipamento(equipamentoId){
+  return state.checklists.filter(k=>Array.isArray(k.equipamentoIds) && k.equipamentoIds.includes(equipamentoId)).sort((a,b)=>b.criadoEm-a.criadoEm);
+}
+function equipamentoRowHTML(eq){
+  const qtdHist = checklistsDoEquipamento(eq.id).length;
+  return `
+  <div class="list-item" data-equip-open="${eq.id}">
+    <div class="li-main">
+      <div class="li-title">${ICONS.camera2} ${escapeHTML(eq.tipo)}${eq.marca||eq.modelo ? ' — '+escapeHTML([eq.marca,eq.modelo].filter(Boolean).join(' ')) : ''}</div>
+      <div class="li-sub">${eq.local ? escapeHTML(eq.local)+' · ' : ''}${eq.numeroSerie ? 'nº série '+escapeHTML(eq.numeroSerie) : 'sem nº de série'}</div>
+    </div>
+    <div class="li-right">
+      <span class="badge badge-gray">${qtdHist} manutenç${qtdHist===1?'ão':'ões'}</span>
+      ${ICONS.chevron}
+    </div>
+  </div>`;
+}
+function equipamentoModalHTML(equipamento, clienteId){
+  const e = equipamento || {id:null, clienteId, tipo:TIPOS_EQUIPAMENTO[0], marca:'', modelo:'', numeroSerie:'', local:'', dataInstalacao:todayISO(), garantiaAte:'', observacoes:''};
+  return `
+  <div class="overlay" id="modalOverlay" ${equipamento ? `data-edit-id="${equipamento.id}"` : ''} data-cliente-id="${e.clienteId}">
+    <div class="modal">
+      <div class="modal-head"><h3>${equipamento?'Editar equipamento':'Novo equipamento'}</h3><button class="icon-btn" id="closeModal">${ICONS.close}</button></div>
+      <div class="modal-body">
+        <div class="row2">
+          <div class="field"><label>Tipo *</label>
+            <select id="f_tipoEquip">${TIPOS_EQUIPAMENTO.map(t=>`<option value="${t}" ${e.tipo===t?'selected':''}>${t}</option>`).join('')}</select>
+          </div>
+          <div class="field"><label>Local de instalação</label><input type="text" id="f_localEquip" value="${escapeAttr(e.local)}" placeholder="Ex.: Entrada principal, Depósito..."></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Marca</label><input type="text" id="f_marcaEquip" value="${escapeAttr(e.marca)}"></div>
+          <div class="field"><label>Modelo</label><input type="text" id="f_modeloEquip" value="${escapeAttr(e.modelo)}"></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Número de série</label><input type="text" id="f_serieEquip" value="${escapeAttr(e.numeroSerie)}"></div>
+          <div class="field"><label>Data de instalação</label><input type="date" id="f_dataInstEquip" value="${e.dataInstalacao||''}"></div>
+        </div>
+        <div class="field"><label>Garantia até (opcional)</label><input type="date" id="f_garantiaEquip" value="${e.garantiaAte||''}"></div>
+        <div class="field"><label>Observações</label><textarea id="f_obsEquip" rows="2">${escapeHTML(e.observacoes)}</textarea></div>
+      </div>
+      <div class="modal-foot">
+        ${equipamento ? `<button class="btn btn-danger-ghost" id="delEquip">${ICONS.trash} Excluir</button>` : ''}
+        <div style="flex:1;"></div>
+        <button class="btn btn-ghost" id="cancelModal">Cancelar</button>
+        <button class="btn btn-primary" id="saveEquip">Salvar equipamento</button>
+      </div>
+    </div>
+  </div>`;
+}
+function equipamentoDetailHTML(eq){
+  const cliente = state.clientes.find(c=>c.id===eq.clienteId);
+  const historico = checklistsDoEquipamento(eq.id);
+  return `
+  <div class="overlay" id="modalOverlay" data-equip-detail-id="${eq.id}">
+    <div class="modal">
+      <div class="modal-head">
+        <h3>${escapeHTML(eq.tipo)}${eq.local?' — '+escapeHTML(eq.local):''}</h3>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost btn-sm" id="editEquip">Editar</button>
+          <button class="icon-btn" id="closeModal">${ICONS.close}</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div style="font-size:13.5px;color:var(--ink-soft);margin-bottom:16px;line-height:1.7;">
+          <div><strong style="color:var(--ink);">Cliente:</strong> ${cliente?escapeHTML(cliente.nome):'—'}</div>
+          ${eq.marca||eq.modelo ? `<div><strong style="color:var(--ink);">Marca/modelo:</strong> ${escapeHTML([eq.marca,eq.modelo].filter(Boolean).join(' '))}</div>` : ''}
+          ${eq.numeroSerie ? `<div><strong style="color:var(--ink);">Nº de série:</strong> ${escapeHTML(eq.numeroSerie)}</div>` : ''}
+          ${eq.dataInstalacao ? `<div><strong style="color:var(--ink);">Instalado em:</strong> ${fmtDate(eq.dataInstalacao)}</div>` : ''}
+          ${eq.garantiaAte ? `<div><strong style="color:var(--ink);">Garantia até:</strong> ${fmtDate(eq.garantiaAte)}</div>` : ''}
+          ${eq.observacoes ? `<div style="margin-top:6px;">${escapeHTML(eq.observacoes)}</div>` : ''}
+        </div>
+        <h3 style="font-size:14.5px;margin-bottom:8px;">Histórico de manutenções (${historico.length})</h3>
+        <div class="list">${historico.length? historico.map(k=>checklistRowHTML(k)).join('') : '<div class="li-sub" style="padding:6px 2px;">Nenhuma manutenção registrada ainda para este equipamento.</div>'}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
 async function clienteDossiePrintContent(cliente){
   const orcs = state.orcamentos.filter(o=>o.clienteId===cliente.id).sort((a,b)=>b.criadoEm-a.criadoEm);
   const chks = state.checklists.filter(k=>k.clienteId===cliente.id).sort((a,b)=>b.criadoEm-a.criadoEm);
@@ -2061,6 +2250,9 @@ function checklistWaText(k, cliente){
   const pend = k.itens.filter(it=>it.status==='pendencia').length;
   return `Olá, ${cliente.nome}! O checklist *#${k.numero}* (${k.tipoServico}) foi ${pend>0? 'concluído com '+pend+' pendência(s) em acompanhamento':'concluído com sucesso'} pela ${state.empresa.nome}.`;
 }
+function pesquisaSatisfacaoText(k, cliente){
+  return `Olá, ${cliente.nome}! Aqui é da ${state.empresa.nome}. Para a gente sempre melhorar, poderia avaliar de 1 a 5 o atendimento que realizamos (${k.tipoServico}, checklist #${k.numero})? É só responder por aqui mesmo. Muito obrigado pela confiança! 🙏`;
+}
 
 /* ---------------------- Compressão de imagem ---------------------- */
 function compressImage(file){
@@ -2205,6 +2397,14 @@ function bindGlobalEvents(){
   const filterStatus = document.getElementById('filterStatus');
   if(filterStatus) filterStatus.addEventListener('change', e=>{ state.filterStatus = e.target.value; render(); });
 
+  const agendaDataInput = document.getElementById('agendaDataInput');
+  if(agendaDataInput) agendaDataInput.addEventListener('change', e=>{ state.agendaData = e.target.value || todayISO(); render(); });
+  const agendaHojeBtn = document.getElementById('agendaHojeBtn');
+  if(agendaHojeBtn) agendaHojeBtn.addEventListener('click', ()=>{ state.agendaData = todayISO(); render(); });
+  const agendaAnteriorBtn = document.getElementById('agendaAnteriorBtn');
+  if(agendaAnteriorBtn) agendaAnteriorBtn.addEventListener('click', ()=>{ state.agendaData = addDias(state.agendaData, -1).toISOString().slice(0,10); render(); });
+  const agendaProximoBtn = document.getElementById('agendaProximoBtn');
+  if(agendaProximoBtn) agendaProximoBtn.addEventListener('click', ()=>{ state.agendaData = addDias(state.agendaData, 1).toISOString().slice(0,10); render(); });
   const novoClienteBtn = document.getElementById('novoClienteBtn');
   const exportClientesBtn = document.getElementById('exportClientesBtn');
   if(exportClientesBtn) exportClientesBtn.addEventListener('click', ()=>{
@@ -2276,6 +2476,14 @@ function bindGlobalEvents(){
     el.addEventListener('click', ()=>{
       const c = state.contratos.find(x=>x.id===el.getAttribute('data-contrato-open'));
       if(c) openModal(contratoModalHTML(c));
+    });
+  });
+  document.querySelectorAll('[data-contrato-lembrete]').forEach(el=>{
+    el.addEventListener('click', e=>{
+      e.stopPropagation();
+      const contrato = state.contratos.find(x=>x.id===el.getAttribute('data-contrato-lembrete'));
+      const cliente = contrato ? state.clientes.find(c=>c.id===contrato.clienteId) : null;
+      if(contrato && cliente) window.open(waLink(cliente.telefone, contratoLembreteText(contrato, cliente)), '_blank');
     });
   });
 
@@ -2469,6 +2677,59 @@ function bindModalEvents(){
     const c = state.clientes.find(x=>x.id===id);
     if(c) baixarESalvarPDF(clienteDossiePrintContent(c), c.id, `Dossie-${slugify(c.nome)}.pdf`);
   });
+  const novoEquipBtn = document.getElementById('novoEquipBtn');
+  if(novoEquipBtn) novoEquipBtn.addEventListener('click', ()=>{
+    const id = overlay.getAttribute('data-cliente-detail-id');
+    closeModalEl();
+    openModal(equipamentoModalHTML(null, id));
+  });
+  overlay.querySelectorAll('[data-equip-open]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const eq = state.equipamentos.find(x=>x.id===el.getAttribute('data-equip-open'));
+      if(eq){ closeModalEl(); openModal(equipamentoDetailHTML(eq)); }
+    });
+  });
+  const editEquipBtn = document.getElementById('editEquip');
+  if(editEquipBtn) editEquipBtn.addEventListener('click', ()=>{
+    const id = overlay.getAttribute('data-equip-detail-id');
+    const eq = state.equipamentos.find(x=>x.id===id);
+    closeModalEl(); if(eq) openModal(equipamentoModalHTML(eq, eq.clienteId));
+  });
+  const saveEquipBtn = document.getElementById('saveEquip');
+  if(saveEquipBtn) saveEquipBtn.addEventListener('click', async ()=>{
+    const editId = overlay.getAttribute('data-edit-id');
+    const clienteId = overlay.getAttribute('data-cliente-id');
+    const data = {
+      clienteId,
+      tipo: document.getElementById('f_tipoEquip').value,
+      local: document.getElementById('f_localEquip').value.trim(),
+      marca: document.getElementById('f_marcaEquip').value.trim(),
+      modelo: document.getElementById('f_modeloEquip').value.trim(),
+      numeroSerie: document.getElementById('f_serieEquip').value.trim(),
+      dataInstalacao: document.getElementById('f_dataInstEquip').value,
+      garantiaAte: document.getElementById('f_garantiaEquip').value,
+      observacoes: document.getElementById('f_obsEquip').value.trim(),
+    };
+    if(editId){
+      const idx = state.equipamentos.findIndex(e=>e.id===editId);
+      state.equipamentos[idx] = {...state.equipamentos[idx], ...data};
+    }else{
+      state.equipamentos.push({id:uid(), ...data});
+    }
+    await saveEquipamentos(); closeModalEl(); toast('Equipamento salvo com sucesso');
+    const c = state.clientes.find(x=>x.id===clienteId);
+    if(c) openModal(clienteDetailHTML(c)); else render();
+  });
+  const delEquipBtn = document.getElementById('delEquip');
+  if(delEquipBtn) delEquipBtn.addEventListener('click', async ()=>{
+    const editId = overlay.getAttribute('data-edit-id');
+    const clienteId = overlay.getAttribute('data-cliente-id');
+    if(!editId || !confirm('Excluir este equipamento e seu histórico de manutenções vinculado?')) return;
+    state.equipamentos = state.equipamentos.filter(e=>e.id!==editId);
+    await saveEquipamentos(); closeModalEl(); toast('Equipamento excluído');
+    const c = state.clientes.find(x=>x.id===clienteId);
+    if(c) openModal(clienteDetailHTML(c)); else render();
+  });
 
   /* --- Orçamento: itens dinâmicos + totais ao vivo --- */
   const itensTable = document.getElementById('itensTable');
@@ -2644,15 +2905,17 @@ function bindModalEvents(){
     state.orcamentos[idx].status='recusado'; await saveOrcamentos(); closeModalEl(); render(); toast('Orçamento recusado');
   });
 
-  /* --- Orçamento/Checklist: cliente change → recarrega informações e endereços do cliente --- */
+  /* --- Orçamento/Checklist: cliente change → recarrega informações, endereços e equipamentos do cliente --- */
   const fCliente = document.getElementById('f_cliente');
   const fOrcamento = document.getElementById('f_orcamento');
   const clienteInfoContainer = document.getElementById('clienteInfoContainer');
   const enderecoSelectContainer = document.getElementById('enderecoSelectContainer');
+  const equipamentosSelectContainer = document.getElementById('equipamentosSelectContainer');
   if(fCliente && clienteInfoContainer){
     fCliente.addEventListener('change', ()=>{
       clienteInfoContainer.innerHTML = clienteInfoCardHTML(fCliente.value);
       if(enderecoSelectContainer) enderecoSelectContainer.innerHTML = enderecoSelectHTML(fCliente.value);
+      if(equipamentosSelectContainer) equipamentosSelectContainer.innerHTML = equipamentosSelectHTML(fCliente.value, []);
       const fEnd = document.getElementById('f_endereco');
       if(fEnd) fEnd.addEventListener('change', ()=>{ clienteInfoContainer.innerHTML = clienteInfoCardHTML(fCliente.value, fEnd.value); });
     });
@@ -2765,8 +3028,10 @@ function bindModalEvents(){
     const editId = overlay.getAttribute('data-edit-id');
     const orcSel = document.getElementById('f_orcamento');
     const fEndCheck = document.getElementById('f_endereco');
+    const equipamentoIds = Array.from(document.querySelectorAll('.equip-checkbox:checked')).map(cb=>cb.value);
     const data = {
       clienteId, enderecoId: fEndCheck ? fEndCheck.value : (state.clientes.find(c=>c.id===clienteId)?.enderecos?.[0]?.id || ''),
+      equipamentoIds,
       tecnico: document.getElementById('f_tecnico').value.trim(),
       tipoServico: document.getElementById('f_tipoServico').value, natureza: document.getElementById('f_natureza').value,
       data: document.getElementById('f_data').value, horaInicio: document.getElementById('f_horaInicio').value, horaFim: document.getElementById('f_horaFim').value,
@@ -2811,6 +3076,12 @@ function bindModalEvents(){
     const id = overlay.getAttribute('data-check-detail-id'); const k = state.checklists.find(x=>x.id===id);
     const cliente = state.clientes.find(c=>c.id===k.clienteId) || {nome:'Cliente'};
     window.open(waLink(cliente.telefone, checklistWaText(k, cliente)), '_blank');
+  });
+  const pesquisaSatisfacaoBtn = document.getElementById('pesquisaSatisfacaoBtn');
+  if(pesquisaSatisfacaoBtn) pesquisaSatisfacaoBtn.addEventListener('click', ()=>{
+    const id = overlay.getAttribute('data-check-detail-id'); const k = state.checklists.find(x=>x.id===id);
+    const cliente = state.clientes.find(c=>c.id===k.clienteId) || {nome:'Cliente'};
+    window.open(waLink(cliente.telefone, pesquisaSatisfacaoText(k, cliente)), '_blank');
   });
   const mapsCheckBtn = document.getElementById('mapsCheck');
   if(mapsCheckBtn) mapsCheckBtn.addEventListener('click', ()=>{
@@ -2888,6 +3159,14 @@ function bindModalEvents(){
     const periodo = PERIODICIDADES.find(p=>p.dias===Number(contrato.periodicidadeDias));
     const texto = `Olá, ${cliente.nome}! Confirmando o contrato de manutenção (${contrato.tipoServico}, ${periodo?periodo.label:contrato.periodicidadeDias+' dias'}) com a ${state.empresa.nome}.`;
     window.open(waLink(cliente.telefone, texto), '_blank');
+  });
+  const lembreteContratoBtn = document.getElementById('lembreteContratoBtn');
+  if(lembreteContratoBtn) lembreteContratoBtn.addEventListener('click', ()=>{
+    const editId = overlay.getAttribute('data-edit-id'); const contrato = state.contratos.find(c=>c.id===editId);
+    if(!contrato) return;
+    const cliente = state.clientes.find(cl=>cl.id===contrato.clienteId) || {nome:'Cliente'};
+    if(!cliente.telefone){ toast('Este cliente não tem telefone cadastrado'); return; }
+    window.open(waLink(cliente.telefone, contratoLembreteText(contrato, cliente)), '_blank');
   });
 
   /* --- Usuários: perfil change → mostra/esconde vínculo de cliente --- */
