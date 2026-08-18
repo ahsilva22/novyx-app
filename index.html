@@ -276,6 +276,45 @@ label{font-size:12.5px;font-weight:600;color:var(--ink-soft);display:block;margi
 .lightbox-img{max-width:92vw;max-height:82vh;border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.5);background:#fff;}
 .cliente-info-card{background:var(--surface-alt);border:1px solid var(--line-soft);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:var(--ink-soft);}
 .cliente-info-card strong{color:var(--ink);}
+
+/* ---------- Calendário (Agenda) ---------- */
+.cal-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+.cal-viewtabs{display:flex;background:var(--surface-alt);border-radius:9px;padding:3px;gap:2px;}
+.cal-viewtabs button{border:none;background:none;padding:7px 15px;border-radius:7px;font-size:13px;font-weight:600;color:var(--ink-soft);}
+.cal-viewtabs button.active{background:var(--surface);color:var(--ink);box-shadow:var(--shadow);}
+.cal-nav{display:flex;align-items:center;gap:4px;}
+.cal-label{font-size:14.5px;font-weight:700;font-family:'Space Grotesk';min-width:150px;}
+
+.cal-month-grid{display:grid;grid-template-columns:repeat(7,1fr);border:1px solid var(--line-soft);border-radius:12px;overflow:hidden;background:var(--line-soft);gap:1px;}
+.cal-month-head{background:var(--surface-alt);padding:8px;text-align:center;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-soft);}
+.cal-month-day{background:var(--surface);min-height:96px;padding:6px;cursor:pointer;display:flex;flex-direction:column;gap:3px;transition:background .1s;}
+.cal-month-day:hover{background:var(--surface-alt);}
+.cal-month-day.outro-mes{background:var(--bg);}
+.cal-month-day.outro-mes .cal-daynum{color:var(--ink-faint);}
+.cal-daynum{font-size:12px;font-weight:700;width:21px;height:21px;display:flex;align-items:center;justify-content:center;border-radius:50%;color:var(--ink-soft);}
+.cal-month-day.hoje .cal-daynum{background:var(--signal);color:#fff;}
+.cal-month-day.selecionado{box-shadow:inset 0 0 0 2px var(--primary);}
+.cal-chip{font-size:10px;padding:2px 5px;border-radius:5px;background:var(--primary-tint);color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;text-align:left;border:none;width:100%;cursor:pointer;}
+.cal-chip.pendencia{background:var(--danger-tint);color:var(--danger);}
+.cal-chip-mais{font-size:10px;color:var(--ink-faint);font-weight:600;padding-left:2px;background:none;border:none;text-align:left;cursor:pointer;}
+
+.cal-hourgrid-wrap{display:flex;border:1px solid var(--line-soft);border-radius:12px;overflow:hidden;background:var(--surface);}
+.cal-hours-col{width:50px;flex-shrink:0;border-right:1px solid var(--line-soft);padding-top:41px;}
+.cal-hour-label{height:50px;font-size:10px;color:var(--ink-faint);text-align:right;padding:0 6px;box-sizing:border-box;transform:translateY(-6px);}
+.cal-days-wrap{display:flex;flex:1;min-width:0;overflow-x:auto;}
+.cal-day-col{flex:1;position:relative;border-right:1px solid var(--line-soft);min-width:110px;}
+.cal-day-col:last-child{border-right:none;}
+.cal-day-colhead{padding:8px 6px;text-align:center;background:var(--surface-alt);border-bottom:2px solid var(--line-soft);position:sticky;top:0;}
+.cal-day-colhead .dn{font-size:10.5px;color:var(--ink-soft);text-transform:uppercase;font-weight:700;}
+.cal-day-colhead .dd{font-size:15px;font-weight:700;font-family:'Space Grotesk';}
+.cal-day-colhead.hoje .dd{color:var(--signal);}
+.cal-hourlines{position:relative;}
+.cal-hour-line{height:50px;border-bottom:1px solid var(--line-soft);box-sizing:border-box;}
+.cal-event{position:absolute;left:3px;right:3px;background:var(--primary);color:var(--primary-text);border-radius:7px;padding:4px 7px;font-size:11px;line-height:1.35;overflow:hidden;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.18);z-index:2;}
+.cal-event.pendencia{background:var(--danger);color:#fff;}
+.cal-event strong{display:block;font-size:11px;}
+.cal-noschedule-row{padding:8px;border-bottom:2px solid var(--line-soft);display:flex;flex-wrap:wrap;gap:6px;background:var(--surface-alt);}
+.cal-noschedule-row .cal-chip{width:auto;}
 .print-temp{position:fixed;left:-9999px;top:0;width:800px;background:#fff;}
 @media print{ .print-temp{position:absolute !important;left:0 !important;width:100% !important;} }
 </style>
@@ -864,64 +903,171 @@ function dashboardHTML(){
   `;
 }
 
-function emptyState(title, sub){
-  return `<div class="card empty">${ICONS.empty}<div class="t">${title}</div><div>${sub}</div></div>`;
-}
-
 /* =======================================================================
-   AGENDA — o que está previsto para um dia, agrupado por técnico
+   AGENDA — calendário estilo e-mail (Mês / Semana / Dia)
    ======================================================================= */
+const CAL_HORA_INICIO = 7;  // grade de horas visível: 7h às 20h
+const CAL_HORA_FIM = 20;
+const DIAS_SEMANA_ABREV = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+const MESES_NOME = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+function isoLocal(d){
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function inicioDaSemana(dataISO){
+  const d = new Date(dataISO+'T00:00:00');
+  d.setDate(d.getDate()-d.getDay());
+  return d;
+}
+function matrizDoMes(dataISO){
+  const ref = new Date(dataISO+'T00:00:00');
+  const primeiroDia = new Date(ref.getFullYear(), ref.getMonth(), 1);
+  const inicio = new Date(primeiroDia);
+  inicio.setDate(inicio.getDate()-primeiroDia.getDay());
+  const dias = [];
+  for(let i=0;i<42;i++){ const d=new Date(inicio); d.setDate(inicio.getDate()+i); dias.push(d); }
+  return {dias, mesAtual: ref.getMonth()};
+}
+function horaParaFloat(hhmm){ if(!hhmm) return null; const [h,m] = hhmm.split(':').map(Number); return h+(m||0)/60; }
+function checklistsDoDia(dataISO){ return state.checklists.filter(k=>k.data===dataISO); }
+function orcamentosDoDia(dataISO){ return state.orcamentos.filter(o=>o.data===dataISO); }
+
 function agendaHTML(){
   if(!state.agendaData) state.agendaData = todayISO();
+  if(!state.agendaView) state.agendaView = 'mes';
+  const view = state.agendaView;
   const dataRef = state.agendaData;
-  const checksDoDia = state.checklists.filter(k=>k.data===dataRef);
-  const orcsDoDia = state.orcamentos.filter(o=>o.data===dataRef);
 
-  const porTecnico = {};
-  checksDoDia.forEach(k=>{
-    const t = k.tecnico || 'Sem técnico definido';
-    (porTecnico[t] = porTecnico[t]||[]).push(k);
-  });
-  Object.values(porTecnico).forEach(lista=>lista.sort((a,b)=>(a.horaInicio||'99').localeCompare(b.horaInicio||'99')));
-  const tecnicosOrdenados = Object.keys(porTecnico).sort();
-
-  const hojeLabel = dataRef===todayISO() ? ' (hoje)' : '';
+  let rotulo = '';
+  if(view==='mes'){
+    const d = new Date(dataRef+'T00:00:00');
+    rotulo = `${MESES_NOME[d.getMonth()]} de ${d.getFullYear()}`;
+  }else if(view==='semana'){
+    const ini = inicioDaSemana(dataRef); const fim = new Date(ini); fim.setDate(ini.getDate()+6);
+    rotulo = ini.getMonth()===fim.getMonth() ? `${ini.getDate()}–${fim.getDate()} de ${MESES_NOME[ini.getMonth()]}` : `${ini.getDate()} ${MESES_NOME[ini.getMonth()].slice(0,3)} – ${fim.getDate()} ${MESES_NOME[fim.getMonth()].slice(0,3)}`;
+  }else{
+    rotulo = fmtDate(dataRef) + (dataRef===todayISO()?' · Hoje':'');
+  }
 
   return `
-  <div class="section-head">
-    <div class="toolbar" style="align-items:center;gap:10px;">
-      <button class="btn btn-ghost btn-sm" id="agendaAnteriorBtn">${ICONS.chevron.replace('m9 18 6-6-6-6','m15 18-6-6 6-6')}</button>
-      <input type="date" id="agendaDataInput" value="${dataRef}" style="width:170px;">
-      <button class="btn btn-ghost btn-sm" id="agendaProximoBtn">${ICONS.chevron}</button>
-      <button class="btn btn-ghost btn-sm" id="agendaHojeBtn">Hoje</button>
-      <span style="font-size:13px;color:var(--ink-soft);">${fmtDate(dataRef)}${hojeLabel}</span>
+  <div class="cal-toolbar">
+    <div class="cal-viewtabs">
+      <button data-cal-view="mes" class="${view==='mes'?'active':''}">Mês</button>
+      <button data-cal-view="semana" class="${view==='semana'?'active':''}">Semana</button>
+      <button data-cal-view="dia" class="${view==='dia'?'active':''}">Dia</button>
     </div>
+    <div class="cal-nav">
+      <button class="icon-btn" id="calAnteriorBtn" title="Anterior">${ICONS.chevron.replace('m9 18 6-6-6-6','m15 18-6-6 6-6')}</button>
+      <button class="icon-btn" id="calProximoBtn" title="Próximo">${ICONS.chevron}</button>
+      <button class="btn btn-ghost btn-sm" id="agendaHojeBtn">Hoje</button>
+    </div>
+    <div class="cal-label">${rotulo}</div>
+    <div style="flex:1;"></div>
+    <input type="date" id="agendaDataInput" value="${dataRef}" style="width:150px;">
   </div>
-
-  ${orcsDoDia.length ? `<div class="card" style="margin-bottom:16px;">
-    <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);margin-bottom:8px;">Orçamentos/visitas com data neste dia (${orcsDoDia.length})</div>
-    <div class="list">${orcsDoDia.map(o=>orcamentoRowHTML(o)).join('')}</div>
-  </div>` : ''}
-
-  ${tecnicosOrdenados.length===0 ? emptyState('Nada agendado para este dia', 'Nenhum checklist com essa data. Crie um checklist e defina a data do atendimento para ele aparecer aqui.') :
-    tecnicosOrdenados.map(tec=>`
-      <div class="section-head" style="margin-bottom:8px;margin-top:6px;">
-        <h2 style="font-size:15px;">${ICONS.agenda} ${escapeHTML(tec)}</h2>
-        <span class="badge badge-gray">${porTecnico[tec].length} atendimento(s)</span>
-      </div>
-      <div class="list" style="margin-bottom:18px;">${porTecnico[tec].map(k=>{
-        const cliente = state.clientes.find(c=>c.id===k.clienteId);
-        const horario = k.horaInicio ? k.horaInicio+(k.horaFim?'–'+k.horaFim:'') : 'sem horário definido';
-        return `<div class="list-item" data-check-open="${k.id}">
-          <div class="li-main">
-            <div class="li-title"><span class="mono" style="color:var(--ink-faint);font-size:12.5px;">${horario}</span> ${cliente?escapeHTML(cliente.nome):'Cliente removido'} — ${escapeHTML(k.tipoServico)}</div>
-            <div class="li-sub">#${k.numero} · ${escapeHTML(k.natureza||'')}</div>
-          </div>
-          <div class="li-right">${ICONS.chevron}</div>
-        </div>`;
-      }).join('')}</div>
-    `).join('')}
+  ${view==='mes' ? agendaMesHTML(dataRef) : view==='semana' ? agendaGradeHTML(inicioDaSemana(dataRef), 7) : agendaGradeHTML(new Date(dataRef+'T00:00:00'), 1)}
   `;
+}
+
+function agendaMesHTML(dataRef){
+  const {dias, mesAtual} = matrizDoMes(dataRef);
+  const hojeISO = todayISO();
+  return `
+  <div class="cal-month-grid">
+    ${DIAS_SEMANA_ABREV.map(d=>`<div class="cal-month-head">${d}</div>`).join('')}
+    ${dias.map(d=>{
+      const iso = isoLocal(d);
+      const checks = checklistsDoDia(iso).sort((a,b)=>(a.horaInicio||'99').localeCompare(b.horaInicio||'99'));
+      const orcs = orcamentosDoDia(iso);
+      const totalEventos = checks.length + orcs.length;
+      const classes = ['cal-month-day'];
+      if(d.getMonth()!==mesAtual) classes.push('outro-mes');
+      if(iso===hojeISO) classes.push('hoje');
+      if(iso===dataRef) classes.push('selecionado');
+      const maxChips = 3;
+      const chipsChecks = checks.slice(0,maxChips).map(k=>{
+        const cliente = state.clientes.find(c=>c.id===k.clienteId);
+        const pend = k.itens.some(it=>it.status==='pendencia');
+        return `<button class="cal-chip ${pend?'pendencia':''}" data-check-open="${k.id}">${k.horaInicio?k.horaInicio+' ':''}${cliente?escapeHTML(cliente.nome):'Cliente'}</button>`;
+      }).join('');
+      const restantes = totalEventos - Math.min(checks.length,maxChips) - (checks.length<=maxChips?orcs.length:0);
+      return `<div class="${classes.join(' ')}" data-cal-day="${iso}">
+        <div class="cal-daynum">${d.getDate()}</div>
+        ${chipsChecks}
+        ${checks.length<=maxChips ? orcs.slice(0,Math.max(0,maxChips-checks.length)).map(o=>{
+          const cliente = state.clientes.find(c=>c.id===o.clienteId);
+          return `<button class="cal-chip" data-orc-open="${o.id}">📄 ${cliente?escapeHTML(cliente.nome):'Orçamento'}</button>`;
+        }).join('') : ''}
+        ${restantes>0 ? `<button class="cal-chip-mais" data-cal-day-mais="${iso}">+${restantes} mais</button>` : ''}
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function agendaGradeHTML(dataInicial, numDias){
+  const hojeISO = todayISO();
+  const dias = [];
+  for(let i=0;i<numDias;i++){ const d=new Date(dataInicial); d.setDate(dataInicial.getDate()+i); dias.push(d); }
+  const horas = [];
+  for(let h=CAL_HORA_INICIO; h<=CAL_HORA_FIM; h++) horas.push(h);
+
+  const semHorarioHTML = dias.map(d=>{
+    const iso = isoLocal(d);
+    const checksSemHora = checklistsDoDia(iso).filter(k=>!k.horaInicio);
+    const orcs = orcamentosDoDia(iso);
+    if(checksSemHora.length===0 && orcs.length===0) return '';
+    return [
+      ...checksSemHora.map(k=>{
+        const cliente = state.clientes.find(c=>c.id===k.clienteId);
+        const pend = k.itens.some(it=>it.status==='pendencia');
+        return `<button class="cal-chip ${pend?'pendencia':''}" data-check-open="${k.id}">${cliente?escapeHTML(cliente.nome):'Cliente'} · ${escapeHTML(k.tipoServico)}</button>`;
+      }),
+      ...orcs.map(o=>{
+        const cliente = state.clientes.find(c=>c.id===o.clienteId);
+        return `<button class="cal-chip" data-orc-open="${o.id}">📄 Orçamento — ${cliente?escapeHTML(cliente.nome):''}</button>`;
+      })
+    ].join('');
+  });
+  const temSemHorario = semHorarioHTML.some(h=>h);
+
+  return `
+  ${temSemHorario ? `<div class="cal-hourgrid-wrap" style="border-radius:12px 12px 0 0;border-bottom:none;margin-bottom:0;">
+    <div class="cal-hours-col" style="padding-top:0;display:flex;align-items:center;justify-content:flex-end;padding-right:6px;"><span style="font-size:9.5px;color:var(--ink-faint);">sem hora</span></div>
+    <div class="cal-days-wrap">${dias.map((d,i)=>`<div class="cal-day-col" style="min-width:auto;"><div class="cal-noschedule-row" style="border-bottom:none;">${semHorarioHTML[i]||''}</div></div>`).join('')}</div>
+  </div>` : ''}
+  <div class="cal-hourgrid-wrap" style="${temSemHorario?'border-radius:0 0 12px 12px;':''}">
+    <div class="cal-hours-col">
+      ${horas.map(h=>`<div class="cal-hour-label">${String(h).padStart(2,'0')}:00</div>`).join('')}
+    </div>
+    <div class="cal-days-wrap">
+      ${dias.map(d=>{
+        const iso = isoLocal(d);
+        const checks = checklistsDoDia(iso).filter(k=>k.horaInicio);
+        const alturaGrade = (CAL_HORA_FIM-CAL_HORA_INICIO+1)*50;
+        return `<div class="cal-day-col">
+          <div class="cal-day-colhead ${iso===hojeISO?'hoje':''}"><div class="dn">${DIAS_SEMANA_ABREV[d.getDay()]}</div><div class="dd">${d.getDate()}</div></div>
+          <div class="cal-hourlines" style="height:${alturaGrade}px;">
+            ${horas.map(()=>`<div class="cal-hour-line"></div>`).join('')}
+            ${checks.map(k=>{
+              const cliente = state.clientes.find(c=>c.id===k.clienteId);
+              const inicioF = Math.max(CAL_HORA_INICIO, Math.min(CAL_HORA_FIM, horaParaFloat(k.horaInicio)));
+              const fimF = k.horaFim ? Math.max(inicioF+0.4, Math.min(CAL_HORA_FIM+1, horaParaFloat(k.horaFim))) : inicioF+0.75;
+              const top = (inicioF-CAL_HORA_INICIO)*50;
+              const altura = Math.max(26, (fimF-inicioF)*50 - 2);
+              const pend = k.itens.some(it=>it.status==='pendencia');
+              return `<div class="cal-event ${pend?'pendencia':''}" data-check-open="${k.id}" style="top:${top}px;height:${altura}px;">
+                <strong>${k.horaInicio}${k.horaFim?'–'+k.horaFim:''}</strong>${cliente?escapeHTML(cliente.nome):'Cliente'}${altura>40?' · '+escapeHTML(k.tipoServico):''}
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+
+function emptyState(title, sub){
+  return `<div class="card empty">${ICONS.empty}<div class="t">${title}</div><div>${sub}</div></div>`;
 }
 /* =======================================================================
    CLIENTES
@@ -2401,10 +2547,36 @@ function bindGlobalEvents(){
   if(agendaDataInput) agendaDataInput.addEventListener('change', e=>{ state.agendaData = e.target.value || todayISO(); render(); });
   const agendaHojeBtn = document.getElementById('agendaHojeBtn');
   if(agendaHojeBtn) agendaHojeBtn.addEventListener('click', ()=>{ state.agendaData = todayISO(); render(); });
-  const agendaAnteriorBtn = document.getElementById('agendaAnteriorBtn');
-  if(agendaAnteriorBtn) agendaAnteriorBtn.addEventListener('click', ()=>{ state.agendaData = addDias(state.agendaData, -1).toISOString().slice(0,10); render(); });
-  const agendaProximoBtn = document.getElementById('agendaProximoBtn');
-  if(agendaProximoBtn) agendaProximoBtn.addEventListener('click', ()=>{ state.agendaData = addDias(state.agendaData, 1).toISOString().slice(0,10); render(); });
+  document.querySelectorAll('[data-cal-view]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ state.agendaView = btn.getAttribute('data-cal-view'); render(); });
+  });
+  function navegarCalendario(direcao){
+    const passo = state.agendaView==='mes' ? 30 : state.agendaView==='semana' ? 7 : 1;
+    if(state.agendaView==='mes'){
+      const d = new Date(state.agendaData+'T00:00:00');
+      d.setMonth(d.getMonth()+direcao);
+      state.agendaData = isoLocal(d);
+    }else{
+      state.agendaData = isoLocal(addDias(state.agendaData, direcao*passo));
+    }
+    render();
+  }
+  const calAnteriorBtn = document.getElementById('calAnteriorBtn');
+  if(calAnteriorBtn) calAnteriorBtn.addEventListener('click', ()=>navegarCalendario(-1));
+  const calProximoBtn = document.getElementById('calProximoBtn');
+  if(calProximoBtn) calProximoBtn.addEventListener('click', ()=>navegarCalendario(1));
+  document.querySelectorAll('[data-cal-day]').forEach(el=>{
+    el.addEventListener('click', e=>{
+      if(e.target.closest('.cal-chip, .cal-chip-mais')) return; // clique num item específico é tratado à parte
+      state.agendaData = el.getAttribute('data-cal-day'); state.agendaView = 'dia'; render();
+    });
+  });
+  document.querySelectorAll('[data-cal-day-mais]').forEach(el=>{
+    el.addEventListener('click', e=>{
+      e.stopPropagation();
+      state.agendaData = el.getAttribute('data-cal-day-mais'); state.agendaView = 'dia'; render();
+    });
+  });
   const novoClienteBtn = document.getElementById('novoClienteBtn');
   const exportClientesBtn = document.getElementById('exportClientesBtn');
   if(exportClientesBtn) exportClientesBtn.addEventListener('click', ()=>{
