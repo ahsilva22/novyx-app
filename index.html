@@ -1827,13 +1827,19 @@ function emailComposeLink(to, subject, body){
 async function gerarPdfBlob(innerHTML){
   const old = document.querySelector('.print-temp');
   if(old) old.remove();
+  const LARGURA_DOC = 800;
   const div = document.createElement('div');
   div.className = 'print-temp';
-  div.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;background:#fff;';
+  div.style.cssText = `position:fixed;left:-9999px;top:0;width:${LARGURA_DOC}px;box-sizing:border-box;padding:28px;background:#fff;`;
   div.innerHTML = innerHTML;
   document.body.appendChild(div);
   await new Promise(r=>setTimeout(r,80)); // garante que as imagens/fotos já carregaram no DOM
-  const canvas = await html2canvas(div, {scale:2, backgroundColor:'#ffffff', useCORS:true});
+  // width/windowWidth fixos: sem isso, em telas estreitas (celular) o html2canvas usa a largura da janela
+  // real do navegador como referência e a tabela é cortada na lateral direita do PDF.
+  const canvas = await html2canvas(div, {
+    scale:2, backgroundColor:'#ffffff', useCORS:true,
+    width: LARGURA_DOC, windowWidth: LARGURA_DOC, x:0, y:0
+  });
   div.remove();
   const imgData = canvas.toDataURL('image/jpeg', 0.92);
   const { jsPDF } = window.jspdf;
