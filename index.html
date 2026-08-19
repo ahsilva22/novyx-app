@@ -358,6 +358,7 @@ let state = {
   filterStatus: 'todos',
   checklistFiltroTecnico: 'todos',
   agendaData: '', // preenchido com a data de hoje na primeira renderização
+  mostrarArquivados: false,
   loginError: '',
   theme: 'light'
 };
@@ -874,32 +875,64 @@ function viewHTML(){
    DASHBOARD
    ======================================================================= */
 function dashboardHTML(){
-  const totalClientes = state.clientes.length;
-  const orcPend = state.orcamentos.filter(o=>o.status==='enviado').length;
+  const totalClientes = state.clientes.filter(c=>c.ativo!==false).length;
+  const orcPend = state.orcamentos.filter(o=>o.status==='enviado');
   const orcAprov = state.orcamentos.filter(o=>o.status==='aprovado');
   const valorAprovado = orcAprov.reduce((s,o)=>s+calcTotal(o),0);
+  const hojeD = new Date(); const mesAtual = hojeD.getMonth(), anoAtual = hojeD.getFullYear();
+  const orcAprovMes = orcAprov.filter(o=>{ const d=new Date(o.data+'T00:00:00'); return d.getMonth()===mesAtual && d.getFullYear()===anoAtual; });
+  const valorAprovadoMes = orcAprovMes.reduce((s,o)=>s+calcTotal(o),0);
   const checkPend = state.checklists.filter(c=>c.itens.some(it=>it.status==='pendencia')).length;
   const contratosAtivos = state.contratos.filter(c=>c.ativo && Number(c.periodicidadeDias)!==0);
   const contratosVencidos = contratosAtivos.filter(c=>diasParaVencer(c)<0).length;
   const contratosProximos = contratosAtivos.filter(c=>{ const d=diasParaVencer(c); return d>=0 && d<=30; }).length;
 
-  const recentes = [...state.orcamentos].sort((a,b)=>b.criadoEm-a.criadoEm).slice(0,5);
+  const hojeISO = todayISO();
+  const checksHoje = checklistsDoDia(hojeISO).sort((a,b)=>(a.horaInicio||'99').localeCompare(b.horaInicio||'99'));
+
+  // Orçamentos que precisam de atenção: enviados há mais tempo primeiro (aguardando resposta há mais dias sobem ao topo)
+  const precisamAtencao = [...orcPend].sort((a,b)=>a.data.localeCompare(b.data)).slice(0,5);
 
   return `
+  <div class="section-head" style="margin-bottom:14px;">
+    <div class="toolbar" style="font-size:13px;color:var(--ink-soft);">Atalhos rápidos:</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-ghost btn-sm" id="atalhoNovoCliente">${ICONS.plus} Cliente</button>
+      <button class="btn btn-ghost btn-sm" id="atalhoNovoOrcamento">${ICONS.plus} Orçamento</button>
+      <button class="btn btn-ghost btn-sm" id="atalhoNovoChecklist">${ICONS.plus} Checklist</button>
+    </div>
+  </div>
+
   <div class="grid kpi-grid">
-    <div class="card kpi"><div class="label">${ICONS.clientes} Clientes</div><div class="value">${totalClientes}</div><div class="foot">cadastrados no total</div></div>
-    <div class="card kpi"><div class="label"><span class="led led-amber"></span> Orçamentos enviados</div><div class="value">${orcPend}</div><div class="foot">aguardando resposta do cliente</div></div>
-    ${canSeeFinanceiro() ? `<div class="card kpi"><div class="label"><span class="led led-green"></span> Valor aprovado</div><div class="value" style="font-size:22px;">${fmtMoney(valorAprovado)}</div><div class="foot">${orcAprov.length} orçamento(s) aprovado(s)</div></div>` : ''}
-    <div class="card kpi"><div class="label"><span class="led led-red"></span> Checklists c/ pendência</div><div class="value">${checkPend}</div><div class="foot">itens marcados para acompanhamento</div></div>
+    <div class="card kpi" data-nav="clientes" style="cursor:pointer;"><div class="label">${ICONS.clientes} Clientes</div><div class="value">${totalClientes}</div><div class="foot">ativos no total</div></div>
+    <div class="card kpi" data-nav="orcamentos" style="cursor:pointer;"><div class="label"><span class="led led-amber"></span> Orçamentos enviados</div><div class="value">${orcPend.length}</div><div class="foot">aguardando resposta do cliente</div></div>
+    ${canSeeFinanceiro() ? `<div class="card kpi" data-nav="orcamentos" style="cursor:pointer;"><div class="label"><span class="led led-green"></span> Aprovado este mês</div><div class="value" style="font-size:22px;">${fmtMoney(valorAprovadoMes)}</div><div class="foot">${orcAprovMes.length} orçamento(s) · histórico total: ${fmtMoney(valorAprovado)}</div></div>` : ''}
+    <div class="card kpi" data-nav="checklists" style="cursor:pointer;"><div class="label"><span class="led led-red"></span> Checklists c/ pendência</div><div class="value">${checkPend}</div><div class="foot">itens marcados para acompanhamento</div></div>
     <div class="card kpi" data-nav="contratos" style="cursor:pointer;"><div class="label"><span class="led ${contratosVencidos>0?'led-red':'led-amber'}"></span> Manutenções a vencer</div><div class="value">${contratosProximos+contratosVencidos}</div><div class="foot">${contratosVencidos>0? contratosVencidos+' vencida(s) · '+contratosProximos+' nos próx. 30 dias' : contratosProximos+' nos próximos 30 dias'}</div></div>
   </div>
   ${!canSeeFinanceiro() ? `<div class="card" style="margin-bottom:18px;font-size:13px;color:var(--ink-soft);">O reporte financeiro completo (valores aprovados e faturamento) é visível apenas para administradores.</div>` : ''}
 
-  <div class="section-head"><h2>Orçamentos recentes</h2>
+  <div class="section-head"><h2>${ICONS.agenda} Hoje · ${fmtDate(hojeISO)}</h2>
+    <button class="btn btn-ghost btn-sm" data-nav="agenda">Ver agenda completa ${ICONS.chevron}</button>
+  </div>
+  ${checksHoje.length===0 ? emptyState('Nada agendado para hoje','Os checklists com data de hoje aparecem aqui automaticamente.') :
+    `<div class="list" style="margin-bottom:22px;">${checksHoje.map(k=>{
+      const cliente = state.clientes.find(c=>c.id===k.clienteId);
+      const horario = k.horaInicio ? k.horaInicio+(k.horaFim?'–'+k.horaFim:'') : 'sem horário';
+      return `<div class="list-item" data-check-open="${k.id}">
+        <div class="li-main">
+          <div class="li-title"><span class="mono" style="color:var(--ink-faint);font-size:12.5px;">${horario}</span> ${cliente?escapeHTML(cliente.nome):'Cliente removido'} — ${escapeHTML(k.tipoServico)}</div>
+          <div class="li-sub">Técnico: ${escapeHTML(k.tecnico||'—')}</div>
+        </div>
+        <div class="li-right">${ICONS.chevron}</div>
+      </div>`;
+    }).join('')}</div>`}
+
+  <div class="section-head"><h2>Orçamentos que precisam de atenção</h2>
     <button class="btn btn-ghost btn-sm" data-nav="orcamentos">Ver todos ${ICONS.chevron}</button>
   </div>
-  ${recentes.length===0 ? emptyState('Nenhum orçamento ainda','Crie seu primeiro orçamento para começar a organizar seus atendimentos.') :
-    `<div class="list">${recentes.map(o=>orcamentoRowHTML(o)).join('')}</div>`}
+  ${precisamAtencao.length===0 ? emptyState('Nenhum orçamento pendente','Todos os orçamentos enviados já tiveram retorno do cliente.') :
+    `<div class="list">${precisamAtencao.map(o=>orcamentoRowHTML(o)).join('')}</div>`}
   `;
 }
 
@@ -1075,6 +1108,8 @@ function emptyState(title, sub){
 function clientesHTML(){
   const q = state.search.toLowerCase();
   let list = state.clientes.filter(c=> !q || c.nome.toLowerCase().includes(q) || (c.telefone||'').includes(q));
+  const arquivados = list.filter(c=>c.ativo===false);
+  if(!state.mostrarArquivados) list = list.filter(c=>c.ativo!==false);
 
   return `
   <div class="section-head">
@@ -1083,6 +1118,9 @@ function clientesHTML(){
         <input type="text" id="searchInput" placeholder="Buscar cliente…" value="${escapeAttr(state.search)}" style="width:230px;padding-left:32px;">
         <span style="position:absolute;left:10px;top:9px;color:var(--ink-faint);">${ICONS.search}</span>
       </div>
+      ${arquivados.length>0 || state.mostrarArquivados ? `<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-soft);font-weight:600;cursor:pointer;">
+        <input type="checkbox" id="mostrarArquivadosCheck" ${state.mostrarArquivados?'checked':''} style="width:auto;"> Mostrar arquivados (${arquivados.length})
+      </label>` : ''}
     </div>
     <div style="display:flex;gap:8px;">
       <button class="btn btn-ghost" id="exportClientesBtn">${ICONS.excel} Excel</button>
@@ -1097,11 +1135,12 @@ function clientesHTML(){
 function clienteRowHTML(c){
   const nOrc = state.orcamentos.filter(o=>o.clienteId===c.id).length;
   const nChk = state.checklists.filter(k=>k.clienteId===c.id).length;
-  const cidadeUf = [c.cidade].filter(Boolean).join(' · ');
+  const cidadeUf = [(c.enderecos&&c.enderecos[0]&&c.enderecos[0].cidade)||c.cidade].filter(Boolean).join(' · ');
+  const arquivado = c.ativo===false;
   return `
-  <div class="list-item" data-cliente-open="${c.id}">
+  <div class="list-item" data-cliente-open="${c.id}" style="${arquivado?'opacity:.6;':''}">
     <div class="li-main">
-      <div class="li-title">${c.nome}</div>
+      <div class="li-title">${c.nome} ${arquivado?'<span class="badge badge-gray">Arquivado</span>':''}</div>
       <div class="li-sub">${c.telefone || 'sem telefone'} ${cidadeUf ? ' · '+cidadeUf : ''}</div>
     </div>
     <div class="li-right">
@@ -1135,31 +1174,11 @@ function clienteModalHTML(cliente){
         <div style="font-size:12px;color:var(--ink-faint);margin:-3px 0 8px;">Se este cliente já existe e você só precisa de mais um endereço dele (ex.: uma filial), adicione aqui em vez de criar um cadastro novo.</div>
         <div id="enderecosContainer">${enderecos.map((e,idx)=>enderecoRowHTML(e,idx)).join('')}</div>
         <button class="btn btn-ghost btn-sm" id="addEnderecoBtn" style="margin-top:2px;">${ICONS.plus} Adicionar outro endereço</button>
-
-        <label style="margin-top:18px;">Ficha técnica do sistema instalado (opcional)</label>
-        <div class="row2">
-          <div class="field"><label>Tipo de sistema</label>
-            <select id="f_sistemaTipo">
-              <option value="">Não informado</option>
-              ${['HD Analógico','IP','Híbrido','Alarme','Controle de Acesso','Outro'].map(t=>`<option value="${t}" ${c.sistemaTipo===t?'selected':''}>${t}</option>`).join('')}
-            </select>
-          </div>
-          <div class="field"><label>Marca/modelo do DVR/NVR/Central</label><input type="text" id="f_dvrModelo" value="${escapeAttr(c.dvrModelo)}" placeholder="Ex.: NVR 16 canais"></div>
-        </div>
-        <div class="row3">
-          <div class="field"><label>Qtd. de câmeras</label><input type="number" id="f_qtdCameras" value="${escapeAttr(String(c.qtdCameras||''))}" min="0"></div>
-          <div class="field"><label>Armazenamento</label><input type="text" id="f_capacidadeArmazenamento" value="${escapeAttr(c.capacidadeArmazenamento)}" placeholder="Ex.: 2TB"></div>
-          <div class="field"><label>Cabeamento</label>
-            <select id="f_tipoCabeamento">
-              <option value="">Não informado</option>
-              ${['Coaxial','UTP (Cat5e/Cat6)','Fibra óptica','Wi-Fi','Misto'].map(t=>`<option value="${t}" ${c.tipoCabeamento===t?'selected':''}>${t}</option>`).join('')}
-            </select>
-          </div>
-        </div>
-        <div class="field"><label>Detalhes das câmeras/equipamentos</label><input type="text" id="f_tipoCameras" value="${escapeAttr(c.tipoCameras)}" placeholder="Ex.: internas e externas, infravermelho, Full HD"></div>
       </div>
+      ${cliente ? `<div class="no-print" style="padding:0 22px 14px;font-size:12px;color:var(--ink-faint);">"Arquivar" só esconde o cliente das listas — orçamentos, checklists, fotos e documentos no OneDrive continuam intactos. "Excluir" apaga tudo permanentemente, sem volta.</div>` : ''}
       <div class="modal-foot">
-        ${cliente ? `<button class="btn btn-danger-ghost" id="delCliente">${ICONS.trash} Excluir</button>` : ''}
+        ${cliente ? `<button class="btn btn-danger-ghost" id="delCliente">${ICONS.trash} Excluir permanentemente</button>` : ''}
+        ${cliente ? `<button class="btn btn-ghost" id="arquivarClienteBtn">${c.ativo===false ? ICONS.folder+' Reativar cliente' : ICONS.folder+' Arquivar cliente'}</button>` : ''}
         <div style="flex:1;"></div>
         <button class="btn btn-ghost" id="cancelModal">Cancelar</button>
         <button class="btn btn-primary" id="saveCliente">Salvar cliente</button>
@@ -1414,6 +1433,10 @@ function itemRowHTML(it){
   </tr>`;
 }
 
+function orcamentoOptionLabel(o){
+  const st = (STATUS_ORC[o.status]||{}).label || o.status;
+  return `#${o.numero} · ${fmtDate(o.data)} · ${st} · ${fmtMoney(calcTotal(o))}`;
+}
 function nextNumero(tipo){
   const arr = tipo==='orcamentos' ? state.orcamentos : state.checklists;
   const max = arr.reduce((m,x)=>Math.max(m, Number(x.numero)||0), 0);
@@ -1568,7 +1591,7 @@ function checklistFormHTML(check){
           <div class="field"><label>Hora de término</label><input type="time" id="f_horaFim" value="${k.horaFim||''}"></div>
         </div>
         ${!check ? `<div class="field"><label>Vincular a um orçamento (opcional)</label>
-          <select id="f_orcamento"><option value="">Nenhum</option>${state.orcamentos.filter(o=>o.clienteId===k.clienteId).map(o=>`<option value="${o.id}">#${o.numero}</option>`).join('')}</select></div>` : ''}
+          <select id="f_orcamento"><option value="">Nenhum</option>${state.orcamentos.filter(o=>o.clienteId===k.clienteId).map(o=>`<option value="${o.id}">${orcamentoOptionLabel(o)}</option>`).join('')}</select></div>` : ''}
 
         <div class="field"><label>Relato do cliente / problema informado (opcional)</label>
           <textarea id="f_relatoCliente" rows="2" placeholder="O que o cliente relatou antes do atendimento…">${escapeHTML(k.relatoCliente)}</textarea>
@@ -2105,6 +2128,7 @@ async function clienteDossiePrintContent(cliente){
   const orcs = state.orcamentos.filter(o=>o.clienteId===cliente.id).sort((a,b)=>b.criadoEm-a.criadoEm);
   const chks = state.checklists.filter(k=>k.clienteId===cliente.id).sort((a,b)=>b.criadoEm-a.criadoEm);
   const contratos = state.contratos.filter(c=>c.clienteId===cliente.id);
+  const equips = equipamentosDoCliente(cliente.id);
 
   const fotoRefs = [];
   orcs.forEach(o=>(o.fotosAntes||[]).forEach(key=>fotoRefs.push({key, legenda:'Orçamento #'+o.numero})));
@@ -2142,6 +2166,11 @@ async function clienteDossiePrintContent(cliente){
     ${contratos.length? sectionTitle('Contratos de manutenção ('+contratos.length+')') + `<table style="width:100%;border-collapse:collapse;font-size:12.5px;color:#111;">
       <thead><tr style="text-align:left;border-bottom:1px solid #ccc;"><th style="padding:4px 6px 4px 0;">Tipo</th><th>Periodicidade</th><th>Próxima manutenção</th><th>Status</th></tr></thead>
       <tbody>${contratos.map(c=>{ const st=statusContrato(c); const periodo=PERIODICIDADES.find(p=>p.dias===Number(c.periodicidadeDias)); const prox=proximaManutencao(c); const pontual=Number(c.periodicidadeDias)===0; return `<tr style="border-bottom:1px solid #eee;"><td style="padding:4px 6px 4px 0;">${escapeHTML(c.tipoServico)}</td><td>${periodo?periodo.label:c.periodicidadeDias+' dias'}</td><td>${pontual?'—':fmtDate(prox.toISOString().slice(0,10))}</td><td>${st.label}</td></tr>`; }).join('')}</tbody>
+    </table>` : ''}
+
+    ${equips.length? sectionTitle('Equipamentos cadastrados ('+equips.length+')') + `<table style="width:100%;border-collapse:collapse;font-size:12.5px;color:#111;">
+      <thead><tr style="text-align:left;border-bottom:1px solid #ccc;"><th style="padding:4px 6px 4px 0;">Tipo</th><th>Marca/modelo</th><th>Local</th><th>Nº série</th><th>Manutenções</th></tr></thead>
+      <tbody>${equips.map(eq=>`<tr style="border-bottom:1px solid #eee;"><td style="padding:4px 6px 4px 0;">${escapeHTML(eq.tipo)}</td><td>${escapeHTML([eq.marca,eq.modelo].filter(Boolean).join(' ')||'—')}</td><td>${escapeHTML(eq.local||'—')}</td><td>${escapeHTML(eq.numeroSerie||'—')}</td><td>${checklistsDoEquipamento(eq.id).length}</td></tr>`).join('')}</tbody>
     </table>` : ''}
 
     ${fotosResolved.length? sectionTitle('Registro fotográfico ('+fotosResolved.length+')') + `<div style="display:flex;flex-wrap:wrap;gap:10px;">${fotosResolved.map(f=>`<div style="width:140px;"><img src="${f.src}" style="width:140px;height:105px;object-fit:cover;border-radius:6px;border:1px solid #ddd;"><div style="font-size:10px;color:#888;margin-top:3px;">${escapeHTML(f.legenda)}</div></div>`).join('')}</div>` : ''}
@@ -2578,6 +2607,8 @@ function bindGlobalEvents(){
     });
   });
   const novoClienteBtn = document.getElementById('novoClienteBtn');
+  const mostrarArquivadosCheck = document.getElementById('mostrarArquivadosCheck');
+  if(mostrarArquivadosCheck) mostrarArquivadosCheck.addEventListener('change', e=>{ state.mostrarArquivados = e.target.checked; render(); });
   const exportClientesBtn = document.getElementById('exportClientesBtn');
   if(exportClientesBtn) exportClientesBtn.addEventListener('click', ()=>{
     const q = state.search.toLowerCase();
@@ -2620,6 +2651,18 @@ function bindGlobalEvents(){
   });
 
   const novoCheckBtn = document.getElementById('novoCheckBtn');
+  const atalhoNovoCliente = document.getElementById('atalhoNovoCliente');
+  if(atalhoNovoCliente) atalhoNovoCliente.addEventListener('click', ()=>openModal(clienteModalHTML()));
+  const atalhoNovoOrcamento = document.getElementById('atalhoNovoOrcamento');
+  if(atalhoNovoOrcamento) atalhoNovoOrcamento.addEventListener('click', ()=>{
+    if(state.clientes.length===0){ toast('Cadastre um cliente antes de criar um orçamento'); return; }
+    openModal(orcamentoFormHTML());
+  });
+  const atalhoNovoChecklist = document.getElementById('atalhoNovoChecklist');
+  if(atalhoNovoChecklist) atalhoNovoChecklist.addEventListener('click', ()=>{
+    if(state.clientes.length===0){ toast('Cadastre um cliente antes de criar um checklist'); return; }
+    openModal(checklistFormHTML());
+  });
   const exportChecklistsBtn = document.getElementById('exportChecklistsBtn');
   if(exportChecklistsBtn) exportChecklistsBtn.addEventListener('click', ()=>{
     let list = state.checklists.slice();
@@ -2672,17 +2715,6 @@ function bindGlobalEvents(){
   }
   const empresaBtn = document.getElementById('empresaBtn');
   if(empresaBtn) empresaBtn.addEventListener('click', ()=>openModal(empresaModalHTML()));
-  const saveEmpresaBtn = document.getElementById('saveEmpresaBtn');
-  if(saveEmpresaBtn) saveEmpresaBtn.addEventListener('click', async ()=>{
-    state.empresa = {
-      nome: document.getElementById('f_empNome').value.trim() || 'NOVYX',
-      telefone: document.getElementById('f_empTelefone').value.trim(),
-      email: document.getElementById('f_empEmail').value.trim(),
-      documento: document.getElementById('f_empDocumento').value.trim(),
-      endereco: document.getElementById('f_empEndereco').value.trim(),
-    };
-    await saveEmpresa(); closeModalEl(); render(); toast('Dados da empresa salvos');
-  });
   const novoUsuarioBtn = document.getElementById('novoUsuarioBtn');
   if(novoUsuarioBtn) novoUsuarioBtn.addEventListener('click', ()=>{
     if(perfilOptionsForCreator().length===0){ toast('Seu perfil não pode criar usuários'); return; }
@@ -2727,6 +2759,17 @@ function bindModalEvents(){
   overlay.addEventListener('click', e=>{ if(e.target===overlay) closeModalEl(); });
   const closeBtn = document.getElementById('closeModal'); if(closeBtn) closeBtn.addEventListener('click', closeModalEl);
   const cancelBtn = document.getElementById('cancelModal'); if(cancelBtn) cancelBtn.addEventListener('click', closeModalEl);
+  const saveEmpresaBtn = document.getElementById('saveEmpresaBtn');
+  if(saveEmpresaBtn) saveEmpresaBtn.addEventListener('click', async ()=>{
+    state.empresa = {
+      nome: document.getElementById('f_empNome').value.trim() || 'NOVYX',
+      telefone: document.getElementById('f_empTelefone').value.trim(),
+      email: document.getElementById('f_empEmail').value.trim(),
+      documento: document.getElementById('f_empDocumento').value.trim(),
+      endereco: document.getElementById('f_empEndereco').value.trim(),
+    };
+    await saveEmpresa(); closeModalEl(); render(); toast('Dados da empresa salvos');
+  });
   overlay.addEventListener('click', e=>{
     const img = e.target.closest('img.photo-clickable');
     if(img && img.getAttribute('src')) openLightbox(img.getAttribute('src'), img.getAttribute('data-filename')||'foto.jpg');
@@ -2780,9 +2823,6 @@ function bindModalEvents(){
       telefone:document.getElementById('f_telefone').value.trim(), email:document.getElementById('f_email').value.trim(),
       documento,
       enderecos: enderecos.length ? enderecos : [{id:uid(), label:'Principal', rua:'', numero:'', bairro:'', cidade:'', cep:''}],
-      sistemaTipo:document.getElementById('f_sistemaTipo').value, dvrModelo:document.getElementById('f_dvrModelo').value.trim(),
-      qtdCameras:document.getElementById('f_qtdCameras').value.trim(), tipoCameras:document.getElementById('f_tipoCameras').value.trim(),
-      capacidadeArmazenamento:document.getElementById('f_capacidadeArmazenamento').value.trim(), tipoCabeamento:document.getElementById('f_tipoCabeamento').value,
     };
     if(editId){
       const idx = state.clientes.findIndex(c=>c.id===editId);
@@ -2804,8 +2844,34 @@ function bindModalEvents(){
     document.querySelectorAll('.removeEnderecoBtn').forEach(b=>{
       b.onclick = ()=>{ b.closest('.step-card').remove(); };
     });
+    bindCepAutocomplete();
   }
-  bindRemoveEnderecoButtons();
+  function bindCepAutocomplete(){
+    document.querySelectorAll('.endereco-cep').forEach(input=>{
+      input.onblur = ()=>buscarCEP(input);
+      input.onkeydown = e=>{ if(e.key==='Enter'){ e.preventDefault(); buscarCEP(input); } };
+    });
+  }
+  async function buscarCEP(input){
+    const limpo = (input.value||'').replace(/\D/g,'');
+    if(limpo.length!==8) return;
+    const row = input.closest('.step-card');
+    if(!row) return;
+    input.style.opacity = '0.5';
+    try{
+      const resp = await fetch(`https://viacep.com.br/ws/${limpo}/json/`);
+      const dados = await resp.json();
+      input.style.opacity = '1';
+      if(dados.erro){ toast('CEP não encontrado'); return; }
+      row.querySelector('.endereco-rua').value = dados.logradouro || row.querySelector('.endereco-rua').value;
+      row.querySelector('.endereco-bairro').value = dados.bairro || row.querySelector('.endereco-bairro').value;
+      row.querySelector('.endereco-cidade').value = dados.localidade || row.querySelector('.endereco-cidade').value;
+      const campoNumero = row.querySelector('.endereco-numero');
+      if(campoNumero && !campoNumero.value) campoNumero.focus();
+      toast('Endereço preenchido automaticamente pelo CEP');
+    }catch(e){ input.style.opacity = '1'; /* sem internet ou CEP inválido — não bloqueia o cadastro, usuário preenche manualmente */ }
+  }
+  bindCepAutocomplete();
   const delClienteBtn = document.getElementById('delCliente');
   if(delClienteBtn) delClienteBtn.addEventListener('click', async ()=>{
     const editId = overlay.getAttribute('data-edit-id');
@@ -2814,6 +2880,16 @@ function bindModalEvents(){
     toast('Excluindo dados do cliente…');
     await excluirClienteCompleto(editId);
     closeModalEl(); render(); toast('Cliente e todos os dados vinculados foram excluídos');
+  });
+  const arquivarClienteBtn = document.getElementById('arquivarClienteBtn');
+  if(arquivarClienteBtn) arquivarClienteBtn.addEventListener('click', async ()=>{
+    const editId = overlay.getAttribute('data-edit-id');
+    const idx = state.clientes.findIndex(c=>c.id===editId);
+    if(idx<0) return;
+    const estavaAtivo = state.clientes[idx].ativo !== false;
+    state.clientes[idx].ativo = !estavaAtivo;
+    await saveClientes(); closeModalEl(); render();
+    toast(estavaAtivo ? 'Cliente arquivado — orçamentos, checklists e documentos no OneDrive continuam intactos' : 'Cliente reativado');
   });
   const editClienteBtn = document.getElementById('editCliente');
   if(editClienteBtn) editClienteBtn.addEventListener('click', ()=>{
@@ -3095,7 +3171,7 @@ function bindModalEvents(){
   if(fCliente && fOrcamento){
     fCliente.addEventListener('change', ()=>{
       const opts = state.orcamentos.filter(o=>o.clienteId===fCliente.value);
-      fOrcamento.innerHTML = '<option value="">Nenhum</option>' + opts.map(o=>`<option value="${o.id}">#${o.numero}</option>`).join('');
+      fOrcamento.innerHTML = '<option value="">Nenhum</option>' + opts.map(o=>`<option value="${o.id}">${orcamentoOptionLabel(o)}</option>`).join('');
     });
   }
   { const fEndInicial = document.getElementById('f_endereco'); if(fEndInicial && fCliente && clienteInfoContainer) fEndInicial.addEventListener('change', ()=>{ clienteInfoContainer.innerHTML = clienteInfoCardHTML(fCliente.value, fEndInicial.value); }); }
