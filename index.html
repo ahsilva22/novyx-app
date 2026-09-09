@@ -1337,7 +1337,7 @@ function orcamentosHTML(){
       </select>
     </div>
     <div style="display:flex;gap:8px;">
-      <button class="btn btn-ghost" id="exportOrcamentosBtn">${ICONS.excel} Excel</button>
+      <button class="btn btn-ghost" id="exportOrcamentosBtn">${ICONS.excel} Excel (resumo)</button>
       ${canCreate ? `<button class="btn btn-primary" id="novoOrcBtn">${ICONS.plus} Novo orçamento</button>` : ''}
     </div>
   </div>
@@ -1492,7 +1492,7 @@ function orcamentoDetailHTML(o){
           ${canEdit ? `<button class="btn btn-ghost btn-sm" id="editOrcFromDetail">Editar</button>` : ''}
           <button class="btn btn-ghost btn-sm" id="printOrc">Imprimir</button>
           <button class="btn btn-ghost btn-sm" id="pdfOrc">${ICONS.pdf} Baixar PDF</button>
-          <button class="btn btn-ghost btn-sm" id="excelOrc">${ICONS.excel} Exportar Excel</button>
+          <button class="btn btn-ghost btn-sm" id="excelOrc">${ICONS.excel} Excel (itens detalhados)</button>
           ${cliente.telefone ? `<a href="tel:${cliente.telefone.replace(/\D/g,'')}" class="btn btn-ghost btn-sm">${ICONS.phone} Ligar</a>` : ''}
           <button class="btn btn-ghost btn-sm" id="whatsappOrc">${ICONS.whatsapp} Enviar por WhatsApp</button>
           ${cliente.email ? `<button class="btn btn-ghost btn-sm" id="emailOrc">${ICONS.mail} Enviar por e-mail</button>` : ''}
