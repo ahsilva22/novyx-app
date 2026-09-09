@@ -1363,7 +1363,7 @@ function orcamentoRowHTML(o){
 }
 
 function orcamentoFormHTML(orc){
-  const o = orc || {id:null, numero: nextNumero('orcamentos'), clienteId:'', enderecoId:'', data:todayISO(), itens:[{id:uid(),descricao:'',qtd:1,valorUnit:0}], descontoPercentual:0, observacoes:'', formaPagamento:'', validade:'', status:'rascunho', fotosAntes:[]};
+  const o = orc || {id:null, numero: nextNumero('orcamentos'), clienteId:'', enderecoId:'', data:todayISO(), itens:[{id:uid(),descricao:'',qtd:1,valorUnit:0}], descontoPercentual:0, observacoes:'O fornecimento dos materiais está condicionado ao pagamento da entrada e poderá sofrer alterações conforme a disponibilidade dos produtos junto aos fornecedores.', formaPagamento:'', validade:'', status:'rascunho', fotosAntes:[]};
   return `
   <div class="overlay" id="modalOverlay" ${orc ? `data-edit-id="${orc.id}"` : ''}>
     <div class="modal wide">
@@ -2213,18 +2213,21 @@ async function gerarPdfBlob(innerHTML){
   const LARGURA_DOC = 800;
   const div = document.createElement('div');
   div.className = 'print-temp';
-  div.style.cssText = `position:fixed;left:-9999px;top:0;width:${LARGURA_DOC}px;box-sizing:border-box;padding:28px;background:#fff;`;
+  div.style.cssText = `position:fixed;left:-9999px;top:0;width:${LARGURA_DOC}px;box-sizing:border-box;padding:28px;background:#fff;font-family:'Inter',sans-serif;`;
   div.innerHTML = innerHTML;
   document.body.appendChild(div);
-  await new Promise(r=>setTimeout(r,80)); // garante que as imagens/fotos já carregaram no DOM
+  // Garante que as fontes da marca (Inter/Space Grotesk) terminaram de carregar antes de capturar —
+  // sem isso, o cabeçalho às vezes é capturado com a fonte substituta do sistema, ficando com aparência ruim.
+  try{ if(document.fonts && document.fonts.ready) await document.fonts.ready; }catch(e){}
+  await new Promise(r=>setTimeout(r,150)); // garante que as imagens/fotos já carregaram no DOM
   // width/windowWidth fixos: sem isso, em telas estreitas (celular) o html2canvas usa a largura da janela
   // real do navegador como referência e a tabela é cortada na lateral direita do PDF.
   const canvas = await html2canvas(div, {
-    scale:2, backgroundColor:'#ffffff', useCORS:true,
+    scale:3, backgroundColor:'#ffffff', useCORS:true,
     width: LARGURA_DOC, windowWidth: LARGURA_DOC, x:0, y:0
   });
   div.remove();
-  const imgData = canvas.toDataURL('image/jpeg', 0.92);
+  const imgData = canvas.toDataURL('image/png'); // PNG sem perdas: texto do cabeçalho nítido, sem "borrado" do JPEG
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF('p','mm','a4');
   const pageW = pdf.internal.pageSize.getWidth();
@@ -2232,12 +2235,12 @@ async function gerarPdfBlob(innerHTML){
   const imgW = pageW;
   const imgH = canvas.height * imgW / canvas.width;
   let heightLeft = imgH, position = 0;
-  pdf.addImage(imgData,'JPEG',0,position,imgW,imgH);
+  pdf.addImage(imgData,'PNG',0,position,imgW,imgH);
   heightLeft -= pageH;
   while(heightLeft > 0){
     position = heightLeft - imgH;
     pdf.addPage();
-    pdf.addImage(imgData,'JPEG',0,position,imgW,imgH);
+    pdf.addImage(imgData,'PNG',0,position,imgW,imgH);
     heightLeft -= pageH;
   }
   return pdf.output('blob');
