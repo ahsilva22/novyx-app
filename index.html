@@ -1954,11 +1954,11 @@ async function orcamentoPrintContent(o){
     ${printDocHeader('Orçamento nº '+o.numero+' · '+fmtDate(o.data))}
     <table style="width:100%;border-collapse:collapse;margin-bottom:14px;font-size:13px;color:#111;"><tr>
       <td style="vertical-align:top;">
-        <strong style="font-size:14px;">NOME: ${escapeHTML(cliente.nome)}</strong><br>
-        ${cliente.documento ? escapeHTML(cliente.documento)+'<br>' : ''}
-        ${cliente.telefone ? `TELEFONE: ${escapeHTML(cliente.telefone)}<br>` : ''}
-        ${cliente.email ? `E-MAIL: ${escapeHTML(cliente.email)}<br>` : ''}
-        ${endereco && enderecoLinha(endereco)!=='—' ? `<span style="color:#555;">ENDEREÇO: ${endereco.label?escapeHTML(endereco.label)+' — ':''}${escapeHTML(enderecoLinha(endereco))}</span>` : ''}
+        <div><strong>NOME:</strong> ${escapeHTML(cliente.nome)}</div>
+        ${cliente.documento ? `<div>${escapeHTML(cliente.documento)}</div>` : ''}
+        ${cliente.telefone ? `<div><strong>TELEFONE:</strong> ${escapeHTML(cliente.telefone)}</div>` : ''}
+        ${cliente.email ? `<div><strong>E-MAIL:</strong> ${escapeHTML(cliente.email)}</div>` : ''}
+        ${endereco && enderecoLinha(endereco)!=='—' ? `<div><strong>ENDEREÇO:</strong> ${endereco.label?escapeHTML(endereco.label)+' — ':''}${escapeHTML(enderecoLinha(endereco))}</div>` : ''}
       </td>
       <td style="vertical-align:top;text-align:right;white-space:nowrap;width:1%;">Status: <strong>${st.label}</strong></td>
     </tr></table>
@@ -2008,10 +2008,10 @@ async function checklistPrintContent(k){
     ${printDocHeader('Checklist nº '+k.numero+' · '+k.tipoServico)}
     <table style="width:100%;border-collapse:collapse;margin-bottom:12px;font-size:13px;color:#111;"><tr>
       <td style="vertical-align:top;">
-        <strong style="font-size:14px;">NOME: ${escapeHTML(cliente.nome)}</strong><br>
-        ${cliente.telefone ? `TELEFONE: ${escapeHTML(cliente.telefone)}<br>` : ''}
-        ${cliente.email ? `E-MAIL: ${escapeHTML(cliente.email)}<br>` : ''}
-        ${endereco && enderecoLinha(endereco)!=='—' ? `<span style="color:#555;">ENDEREÇO: ${endereco.label?escapeHTML(endereco.label)+' — ':''}${escapeHTML(enderecoLinha(endereco))}</span>` : ''}
+        <div><strong>NOME:</strong> ${escapeHTML(cliente.nome)}</div>
+        ${cliente.telefone ? `<div><strong>TELEFONE:</strong> ${escapeHTML(cliente.telefone)}</div>` : ''}
+        ${cliente.email ? `<div><strong>E-MAIL:</strong> ${escapeHTML(cliente.email)}</div>` : ''}
+        ${endereco && enderecoLinha(endereco)!=='—' ? `<div><strong>ENDEREÇO:</strong> ${endereco.label?escapeHTML(endereco.label)+' — ':''}${escapeHTML(enderecoLinha(endereco))}</div>` : ''}
       </td>
     </tr></table>
     <div style="font-size:13px;margin-bottom:10px;color:#111;">${fmtDate(k.data)}${k.horaInicio?' · '+k.horaInicio+(k.horaFim?'–'+k.horaFim:''):''} · técnico: ${escapeHTML(k.tecnico||'—')}${k.natureza?' · '+k.natureza:''}</div>
@@ -2158,12 +2158,12 @@ async function clienteDossiePrintContent(cliente){
 
   return `
     ${printDocHeader('Dossiê do cliente · gerado em '+fmtDate(todayISO()))}
-    <div style="font-size:14px;color:#111;margin-bottom:6px;">
-      <div style="font-weight:700;font-size:16px;">NOME: ${escapeHTML(cliente.nome)}</div>
-      ${cliente.telefone ? `<div style="font-size:13px;color:#555;">TELEFONE: ${escapeHTML(cliente.telefone)}</div>` : ''}
-      ${cliente.email ? `<div style="font-size:13px;color:#555;">E-MAIL: ${escapeHTML(cliente.email)}</div>` : ''}
-      <div style="font-size:13px;color:#555;">ENDEREÇO: ${enderecoLinha(cliente)}</div>
-      ${fichaTecnicaLinha(cliente) ? `<div style="font-size:13px;color:#555;margin-top:4px;"><strong>Sistema:</strong> ${escapeHTML(fichaTecnicaLinha(cliente))}</div>` : ''}
+    <div style="font-size:13px;color:#111;margin-bottom:6px;">
+      <div style="font-size:16px;"><strong>NOME:</strong> ${escapeHTML(cliente.nome)}</div>
+      ${cliente.telefone ? `<div><strong>TELEFONE:</strong> ${escapeHTML(cliente.telefone)}</div>` : ''}
+      ${cliente.email ? `<div><strong>E-MAIL:</strong> ${escapeHTML(cliente.email)}</div>` : ''}
+      <div><strong>ENDEREÇO:</strong> ${enderecoLinha(cliente)}</div>
+      ${fichaTecnicaLinha(cliente) ? `<div style="margin-top:4px;"><strong>Sistema:</strong> ${escapeHTML(fichaTecnicaLinha(cliente))}</div>` : ''}
     </div>
 
     ${sectionTitle('Orçamentos ('+orcs.length+')'+(canSeeFinanceiro()?' · Total aprovado: '+fmtMoney(valorAprovado):''))}
