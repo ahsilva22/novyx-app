@@ -1492,6 +1492,7 @@ function orcamentoDetailHTML(o){
           ${canEdit ? `<button class="btn btn-ghost btn-sm" id="editOrcFromDetail">Editar</button>` : ''}
           <button class="btn btn-ghost btn-sm" id="printOrc">Imprimir</button>
           <button class="btn btn-ghost btn-sm" id="pdfOrc">${ICONS.pdf} Baixar PDF</button>
+          <button class="btn btn-ghost btn-sm" id="excelOrc">${ICONS.excel} Exportar Excel</button>
           ${cliente.telefone ? `<a href="tel:${cliente.telefone.replace(/\D/g,'')}" class="btn btn-ghost btn-sm">${ICONS.phone} Ligar</a>` : ''}
           <button class="btn btn-ghost btn-sm" id="whatsappOrc">${ICONS.whatsapp} Enviar por WhatsApp</button>
           ${cliente.email ? `<button class="btn btn-ghost btn-sm" id="emailOrc">${ICONS.mail} Enviar por e-mail</button>` : ''}
@@ -1933,7 +1934,6 @@ function printDocHeader(subtitle){
   return `<table style="width:100%;border-collapse:collapse;margin-bottom:18px;"><tr>
     <td style="width:46px;vertical-align:top;padding-bottom:14px;border-bottom:2px solid #0D0D0D;"><img src="${LOGO_DATA_URI}" style="height:34px;width:auto;"></td>
     <td style="vertical-align:top;padding-bottom:14px;border-bottom:2px solid #0D0D0D;">
-      <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;color:#0D0D0D;">${escapeHTML(state.empresa.nome)}</div>
       ${contatos ? `<div style="font-size:11px;color:#888;">${escapeHTML(contatos)}</div>` : ''}
       <div style="font-size:12px;color:#666;margin-top:2px;">${subtitle}</div>
     </td>
@@ -1954,10 +1954,11 @@ async function orcamentoPrintContent(o){
     ${printDocHeader('Orçamento nº '+o.numero+' · '+fmtDate(o.data))}
     <table style="width:100%;border-collapse:collapse;margin-bottom:14px;font-size:13px;color:#111;"><tr>
       <td style="vertical-align:top;">
-        <strong style="font-size:14px;">${escapeHTML(cliente.nome)}</strong><br>
+        <strong style="font-size:14px;">NOME: ${escapeHTML(cliente.nome)}</strong><br>
         ${cliente.documento ? escapeHTML(cliente.documento)+'<br>' : ''}
-        ${cliente.telefone||cliente.email ? `${escapeHTML(cliente.telefone||'')}${cliente.telefone&&cliente.email?' · ':''}${escapeHTML(cliente.email||'')}<br>` : ''}
-        ${endereco && enderecoLinha(endereco)!=='—' ? `<span style="color:#555;">${endereco.label?escapeHTML(endereco.label)+': ':''}${escapeHTML(enderecoLinha(endereco))}</span>` : ''}
+        ${cliente.telefone ? `TELEFONE: ${escapeHTML(cliente.telefone)}<br>` : ''}
+        ${cliente.email ? `E-MAIL: ${escapeHTML(cliente.email)}<br>` : ''}
+        ${endereco && enderecoLinha(endereco)!=='—' ? `<span style="color:#555;">ENDEREÇO: ${endereco.label?escapeHTML(endereco.label)+' — ':''}${escapeHTML(enderecoLinha(endereco))}</span>` : ''}
       </td>
       <td style="vertical-align:top;text-align:right;white-space:nowrap;width:1%;">Status: <strong>${st.label}</strong></td>
     </tr></table>
@@ -2002,9 +2003,18 @@ async function checklistPrintContent(k){
       ${fotos ? `<div style="display:flex;gap:8px;margin-top:6px;">${fotos}</div>` : ''}
     </div>`;
   }).join('');
+  const endereco = enderecoDoCliente(cliente, k.enderecoId);
   return `
     ${printDocHeader('Checklist nº '+k.numero+' · '+k.tipoServico)}
-    <div style="font-size:13px;margin-bottom:10px;color:#111;"><strong>${escapeHTML(cliente.nome)}</strong> · ${fmtDate(k.data)}${k.horaInicio?' · '+k.horaInicio+(k.horaFim?'–'+k.horaFim:''):''} · técnico: ${escapeHTML(k.tecnico||'—')}${k.natureza?' · '+k.natureza:''}</div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:12px;font-size:13px;color:#111;"><tr>
+      <td style="vertical-align:top;">
+        <strong style="font-size:14px;">NOME: ${escapeHTML(cliente.nome)}</strong><br>
+        ${cliente.telefone ? `TELEFONE: ${escapeHTML(cliente.telefone)}<br>` : ''}
+        ${cliente.email ? `E-MAIL: ${escapeHTML(cliente.email)}<br>` : ''}
+        ${endereco && enderecoLinha(endereco)!=='—' ? `<span style="color:#555;">ENDEREÇO: ${endereco.label?escapeHTML(endereco.label)+' — ':''}${escapeHTML(enderecoLinha(endereco))}</span>` : ''}
+      </td>
+    </tr></table>
+    <div style="font-size:13px;margin-bottom:10px;color:#111;">${fmtDate(k.data)}${k.horaInicio?' · '+k.horaInicio+(k.horaFim?'–'+k.horaFim:''):''} · técnico: ${escapeHTML(k.tecnico||'—')}${k.natureza?' · '+k.natureza:''}</div>
     ${k.relatoCliente ? `<div style="font-size:13px;margin-bottom:8px;color:#111;"><strong>Relato do cliente:</strong> ${escapeHTML(k.relatoCliente)}</div>` : ''}
     ${k.diagnosticoTecnico ? `<div style="font-size:13px;margin-bottom:10px;color:#111;"><strong>Diagnóstico técnico:</strong> ${escapeHTML(k.diagnosticoTecnico)}</div>` : ''}
     <div>${itensHTML}</div>
@@ -2019,6 +2029,7 @@ async function checklistPrintContent(k){
 }
 function contratoPrintContent(contrato){
   const cliente = state.clientes.find(c=>c.id===contrato.clienteId) || {nome:'Cliente removido'};
+  const endereco = enderecoDoCliente(cliente, contrato.enderecoId);
   const st = statusContrato(contrato);
   const periodo = PERIODICIDADES.find(p=>p.dias===Number(contrato.periodicidadeDias));
   const pontual = Number(contrato.periodicidadeDias)===0;
@@ -2026,8 +2037,11 @@ function contratoPrintContent(contrato){
   return `
     ${printDocHeader('Contrato de manutenção')}
     <div style="font-size:13.5px;color:#111;line-height:1.9;">
-      <div><strong>Cliente:</strong> ${escapeHTML(cliente.nome)}</div>
-      <div><strong>Tipo de serviço:</strong> ${escapeHTML(contrato.tipoServico)}</div>
+      <div><strong>NOME:</strong> ${escapeHTML(cliente.nome)}</div>
+      ${cliente.telefone ? `<div><strong>TELEFONE:</strong> ${escapeHTML(cliente.telefone)}</div>` : ''}
+      ${cliente.email ? `<div><strong>E-MAIL:</strong> ${escapeHTML(cliente.email)}</div>` : ''}
+      ${endereco && enderecoLinha(endereco)!=='—' ? `<div><strong>ENDEREÇO:</strong> ${endereco.label?escapeHTML(endereco.label)+' — ':''}${escapeHTML(enderecoLinha(endereco))}</div>` : ''}
+      <div style="margin-top:8px;"><strong>Tipo de serviço:</strong> ${escapeHTML(contrato.tipoServico)}</div>
       <div><strong>Periodicidade:</strong> ${periodo?periodo.label:contrato.periodicidadeDias+' dias'}</div>
       <div><strong>Última manutenção:</strong> ${fmtDate(contrato.dataUltimoServico)}</div>
       <div><strong>Próxima manutenção:</strong> ${pontual? '— (serviço pontual, sem repetição)' : fmtDate(prox.toISOString().slice(0,10))}</div>
@@ -2145,9 +2159,10 @@ async function clienteDossiePrintContent(cliente){
   return `
     ${printDocHeader('Dossiê do cliente · gerado em '+fmtDate(todayISO()))}
     <div style="font-size:14px;color:#111;margin-bottom:6px;">
-      <div style="font-weight:700;font-size:16px;">${escapeHTML(cliente.nome)}</div>
-      <div style="font-size:13px;color:#555;">${escapeHTML(cliente.telefone||'')}${cliente.email?' · '+escapeHTML(cliente.email):''}</div>
-      <div style="font-size:13px;color:#555;">${enderecoLinha(cliente)}</div>
+      <div style="font-weight:700;font-size:16px;">NOME: ${escapeHTML(cliente.nome)}</div>
+      ${cliente.telefone ? `<div style="font-size:13px;color:#555;">TELEFONE: ${escapeHTML(cliente.telefone)}</div>` : ''}
+      ${cliente.email ? `<div style="font-size:13px;color:#555;">E-MAIL: ${escapeHTML(cliente.email)}</div>` : ''}
+      <div style="font-size:13px;color:#555;">ENDEREÇO: ${enderecoLinha(cliente)}</div>
       ${fichaTecnicaLinha(cliente) ? `<div style="font-size:13px;color:#555;margin-top:4px;"><strong>Sistema:</strong> ${escapeHTML(fichaTecnicaLinha(cliente))}</div>` : ''}
     </div>
 
@@ -2395,6 +2410,19 @@ function orcamentosExportRows(list){
     return {'Número':o.numero, Cliente:cliente?cliente.nome:'—', Data:fmtDate(o.data), Status:(STATUS_ORC[o.status]||{}).label||o.status,
       Subtotal:calcSubtotal(o), 'Desconto (%)':o.descontoPercentual||0, 'Total (R$)':calcTotal(o), Observações:o.observacoes||''};
   });
+}
+/* Exporta um único orçamento com os itens detalhados linha a linha (usado no botão "Exportar Excel" do detalhe do orçamento) */
+function orcamentoItensExportRows(o){
+  const rows = (o.itens||[]).map(it=>({
+    'Descrição':it.descricao, 'Quantidade':it.qtd, 'Valor Unitário (R$)':it.valorUnit,
+    'Subtotal (R$)': Number(((Number(it.qtd)||0)*(Number(it.valorUnit)||0)).toFixed(2)),
+  }));
+  rows.push({'Descrição':'', 'Quantidade':'', 'Valor Unitário (R$)':'Subtotal:', 'Subtotal (R$)': Number(calcSubtotal(o).toFixed(2))});
+  if(o.descontoPercentual){
+    rows.push({'Descrição':'', 'Quantidade':'', 'Valor Unitário (R$)':`Desconto (${o.descontoPercentual}%):`, 'Subtotal (R$)': Number((-calcDescontoValor(o)).toFixed(2))});
+  }
+  rows.push({'Descrição':'', 'Quantidade':'', 'Valor Unitário (R$)':'TOTAL:', 'Subtotal (R$)': Number(calcTotal(o).toFixed(2))});
+  return rows;
 }
 function checklistsExportRows(list){
   return list.map(k=>{
@@ -3115,7 +3143,14 @@ function bindModalEvents(){
   const pdfOrcBtn = document.getElementById('pdfOrc');
   if(pdfOrcBtn) pdfOrcBtn.addEventListener('click', ()=>{
     const id = overlay.getAttribute('data-orc-detail-id'); const o = state.orcamentos.find(x=>x.id===id);
-    baixarESalvarPDF(orcamentoPrintContent(o), o.clienteId, `Orcamento-${o.numero}.pdf`);
+    const clienteNome = (state.clientes.find(c=>c.id===o.clienteId)||{}).nome || 'Cliente';
+    baixarESalvarPDF(orcamentoPrintContent(o), o.clienteId, `Orcamento-${o.numero}-${slugify(clienteNome)}.pdf`);
+  });
+  const excelOrcBtn = document.getElementById('excelOrc');
+  if(excelOrcBtn) excelOrcBtn.addEventListener('click', ()=>{
+    const id = overlay.getAttribute('data-orc-detail-id'); const o = state.orcamentos.find(x=>x.id===id);
+    const clienteNome = (state.clientes.find(c=>c.id===o.clienteId)||{}).nome || 'Cliente';
+    exportarExcel(orcamentoItensExportRows(o), `Orcamento-${o.numero}-${slugify(clienteNome)}.csv`, 'Orcamento');
   });
   const whatsappOrcBtn = document.getElementById('whatsappOrc');
   if(whatsappOrcBtn) whatsappOrcBtn.addEventListener('click', ()=>{
