@@ -338,6 +338,9 @@ const STORE = {
   checklists: 'checklists.json',
   contratos: 'contratos.json',
   equipamentos: 'equipamentos.json',
+  monitoramentoPlanos: 'monitoramento_planos.json',
+  monitoramentoAssinaturas: 'monitoramento_assinaturas.json',
+  monitoramentoCobrancas: 'monitoramento_cobrancas.json',
   usuarios: 'usuarios.json',
   empresa: 'empresa.json'
 };
@@ -351,9 +354,13 @@ let state = {
   checklists: [],
   contratos: [],
   equipamentos: [],
+  monitoramentoPlanos: [],
+  monitoramentoAssinaturas: [],
+  monitoramentoCobrancas: [],
   usuarios: [],
   empresa: { nome: 'NOVYX' },
   loading: true,
+  erroCarregamento: false,
   search: '',
   filterStatus: 'todos',
   checklistFiltroTecnico: 'todos',
@@ -386,14 +393,40 @@ function toast(msg){
 
 /* ---------------------- Persistência ---------------------- */
 async function loadAll(){
-  state.loading = true; render();
-  try{ const c = await safeGet(STORE.clientes); state.clientes = c ? JSON.parse(c.value) : []; }catch(e){ state.clientes = []; }
-  try{ const o = await safeGet(STORE.orcamentos); state.orcamentos = o ? JSON.parse(o.value) : []; }catch(e){ state.orcamentos = []; }
-  try{ const ck = await safeGet(STORE.checklists); state.checklists = ck ? JSON.parse(ck.value) : []; }catch(e){ state.checklists = []; }
-  try{ const ct = await safeGet(STORE.contratos); state.contratos = ct ? JSON.parse(ct.value) : []; }catch(e){ state.contratos = []; }
-  try{ const eq = await safeGet(STORE.equipamentos); state.equipamentos = eq ? JSON.parse(eq.value) : []; }catch(e){ state.equipamentos = []; }
-  try{ const u = await safeGet(STORE.usuarios); state.usuarios = u ? JSON.parse(u.value) : []; }catch(e){ state.usuarios = []; }
-  try{ const emp = await safeGet(STORE.empresa); if(emp) state.empresa = JSON.parse(emp.value); }catch(e){}
+  state.loading = true; state.erroCarregamento = false; render();
+  const r = {};
+  r.clientes = await safeGet(STORE.clientes);
+  r.orcamentos = await safeGet(STORE.orcamentos);
+  r.checklists = await safeGet(STORE.checklists);
+  r.contratos = await safeGet(STORE.contratos);
+  r.equipamentos = await safeGet(STORE.equipamentos);
+  r.monitoramentoPlanos = await safeGet(STORE.monitoramentoPlanos);
+  r.monitoramentoAssinaturas = await safeGet(STORE.monitoramentoAssinaturas);
+  r.monitoramentoCobrancas = await safeGet(STORE.monitoramentoCobrancas);
+  r.usuarios = await safeGet(STORE.usuarios);
+  r.empresa = await safeGet(STORE.empresa);
+
+  // Se QUALQUER arquivo falhou ao carregar por erro real (rede, token expirado, etc — não por realmente não existir),
+  // paramos aqui. Nunca seguimos em frente tratando erro como "vazio", pois isso já causou perda real de dados no
+  // passado (o app recriava um admin novo e sobrescrevia o usuarios.json de verdade por cima do original).
+  const falhouAlgum = Object.values(r).some(x=>!x.ok);
+  if(falhouAlgum){
+    state.loading = false;
+    state.erroCarregamento = true;
+    render();
+    return;
+  }
+
+  state.clientes = r.clientes.value ? JSON.parse(r.clientes.value) : [];
+  state.orcamentos = r.orcamentos.value ? JSON.parse(r.orcamentos.value) : [];
+  state.checklists = r.checklists.value ? JSON.parse(r.checklists.value) : [];
+  state.contratos = r.contratos.value ? JSON.parse(r.contratos.value) : [];
+  state.equipamentos = r.equipamentos.value ? JSON.parse(r.equipamentos.value) : [];
+  state.monitoramentoPlanos = r.monitoramentoPlanos.value ? JSON.parse(r.monitoramentoPlanos.value) : [];
+  state.monitoramentoAssinaturas = r.monitoramentoAssinaturas.value ? JSON.parse(r.monitoramentoAssinaturas.value) : [];
+  state.monitoramentoCobrancas = r.monitoramentoCobrancas.value ? JSON.parse(r.monitoramentoCobrancas.value) : [];
+  state.usuarios = r.usuarios.value ? JSON.parse(r.usuarios.value) : [];
+  if(r.empresa.value) state.empresa = JSON.parse(r.empresa.value);
 
   // Migração: clientes antigos tinham um único endereço solto — agora viram o primeiro item de uma lista de endereços
   let precisaResalvarClientes = false;
@@ -428,12 +461,21 @@ async function toggleTheme(){
   render();
 }
 function themeToggleIcon(){ return state.theme==='dark' ? ICONS.sun : ICONS.moon; }
-async function safeGet(key){ try{ const val = await graphGetFile(key); return val!==null ? {value: val} : null; }catch(e){ return null; } }
+/* safeGet distingue "arquivo realmente não existe" (ok:true, value:null — 404 de verdade) de "deu erro ao tentar ler"
+   (ok:false — rede, token expirado, servidor fora). Essa diferença é crítica: só no primeiro caso é seguro tratar
+   como "está vazio"; no segundo, jamais podemos seguir como se estivesse vazio, ou arriscamos sobrescrever dados reais. */
+async function safeGet(key){
+  try{ const val = await graphGetFile(key); return {ok:true, value: val}; }
+  catch(e){ return {ok:false, value:null}; }
+}
 async function saveClientes(){ try{ await graphPutFile(STORE.clientes, JSON.stringify(state.clientes)); }catch(e){ toast('Erro ao salvar clientes no OneDrive'); } }
 async function saveOrcamentos(){ try{ await graphPutFile(STORE.orcamentos, JSON.stringify(state.orcamentos)); }catch(e){ toast('Erro ao salvar orçamentos no OneDrive'); } }
 async function saveChecklists(){ try{ await graphPutFile(STORE.checklists, JSON.stringify(state.checklists)); }catch(e){ toast('Erro ao salvar checklists no OneDrive'); } }
 async function saveContratos(){ try{ await graphPutFile(STORE.contratos, JSON.stringify(state.contratos)); }catch(e){ toast('Erro ao salvar contratos no OneDrive'); } }
 async function saveEquipamentos(){ try{ await graphPutFile(STORE.equipamentos, JSON.stringify(state.equipamentos)); }catch(e){ toast('Erro ao salvar equipamentos no OneDrive'); } }
+async function saveMonitoramentoPlanos(){ try{ await graphPutFile(STORE.monitoramentoPlanos, JSON.stringify(state.monitoramentoPlanos)); }catch(e){ toast('Erro ao salvar planos no OneDrive'); } }
+async function saveMonitoramentoAssinaturas(){ try{ await graphPutFile(STORE.monitoramentoAssinaturas, JSON.stringify(state.monitoramentoAssinaturas)); }catch(e){ toast('Erro ao salvar assinaturas no OneDrive'); } }
+async function saveMonitoramentoCobrancas(){ try{ await graphPutFile(STORE.monitoramentoCobrancas, JSON.stringify(state.monitoramentoCobrancas)); }catch(e){ toast('Erro ao salvar cobranças no OneDrive'); } }
 async function saveUsuarios(){ try{ await graphPutFile(STORE.usuarios, JSON.stringify(state.usuarios)); }catch(e){ toast('Erro ao salvar usuários no OneDrive'); } }
 async function saveEmpresa(){ try{ await graphPutFile(STORE.empresa, JSON.stringify(state.empresa)); }catch(e){} }
 
@@ -563,9 +605,12 @@ async function excluirClienteCompleto(clienteId){
   state.checklists = state.checklists.filter(k=>k.clienteId!==clienteId);
   state.contratos = state.contratos.filter(c=>c.clienteId!==clienteId);
   state.equipamentos = state.equipamentos.filter(e=>e.clienteId!==clienteId);
+  const assinaturasDoCliente = state.monitoramentoAssinaturas.filter(a=>a.clienteId===clienteId).map(a=>a.id);
+  state.monitoramentoAssinaturas = state.monitoramentoAssinaturas.filter(a=>a.clienteId!==clienteId);
+  state.monitoramentoCobrancas = state.monitoramentoCobrancas.filter(c=>!assinaturasDoCliente.includes(c.assinaturaId));
   state.usuarios = state.usuarios.filter(u=>!(u.perfil==='cliente' && u.clienteId===clienteId));
   state.clientes = state.clientes.filter(c=>c.id!==clienteId);
-  await Promise.all([saveOrcamentos(), saveChecklists(), saveContratos(), saveEquipamentos(), saveUsuarios(), saveClientes()]);
+  await Promise.all([saveOrcamentos(), saveChecklists(), saveContratos(), saveEquipamentos(), saveMonitoramentoAssinaturas(), saveMonitoramentoCobrancas(), saveUsuarios(), saveClientes()]);
 }
 
 /* ---------------------- Ícones ---------------------- */
@@ -595,6 +640,8 @@ const ICONS = {
   folder:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3.5 6.5a1 1 0 0 1 1-1h4.5l1.8 2H19a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4.5a1 1 0 0 1-1-1z"/></svg>',
   camera2:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7H8l1.2-2h5.6L16 7h2.5A1.5 1.5 0 0 1 20 8.5v9A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="12.5" r="3.3"/></svg>',
   agenda:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3.5" y="5" width="17" height="16" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><circle cx="8.5" cy="14" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="14" r="1.1" fill="currentColor" stroke="none"/><circle cx="8.5" cy="17.3" r="1.1" fill="currentColor" stroke="none"/></svg>',
+  monitor:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3.5 4.5 6.5v5c0 5 3.3 8.3 7.5 9.5 4.2-1.2 7.5-4.5 7.5-9.5v-5z"/><path d="M9 12.2l2 2 4-4.2"/></svg>',
+  cifrao:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M16.5 7.5c0-1.9-2-3-4.5-3s-4.5 1.3-4.5 3.2c0 4 9 2 9 6 0 2-2 3.3-4.5 3.3s-4.7-1.1-4.7-3"/></svg>',
   star:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/></svg>',
   bell:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9a6 6 0 0 1 12 0c0 4 1.5 5.5 2 6H4c.5-.5 2-2 2-6z"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0"/></svg>',
   sun:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v3M12 18.5v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2.5 12h3M18.5 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>',
@@ -655,6 +702,7 @@ function navItemsForRole(role){
     {id:'orcamentos', label:'Orçamentos', icon:ICONS.orcamentos},
     {id:'checklists', label:'Checklists', icon:ICONS.checklists},
     {id:'contratos', label:'Contratos', icon:ICONS.contratos},
+    {id:'monitoramento', label:'Monitoramento', icon:ICONS.monitor},
     {id:'usuarios', label:'Usuários', icon:ICONS.usuarios},
   ];
   return base;
@@ -670,6 +718,7 @@ function perfilOptionsForCreator(){
 function render(){
   const app = document.getElementById('app');
   if(state.loading){ app.innerHTML = loadingHTML(); return; }
+  if(state.erroCarregamento){ app.innerHTML = erroCarregamentoHTML(); bindErroCarregamentoEvents(); return; }
   if(!msalReady()){ app.innerHTML = oneDriveNaoConfiguradoHTML(); return; }
   if(!oneDriveConectado()){ app.innerHTML = conectarOneDriveHTML(); bindConectarOneDriveEvents(); return; }
   if(!state.currentUser){ app.innerHTML = loginHTML(); bindLoginEvents(); return; }
@@ -691,6 +740,20 @@ function render(){
 
 function loadingHTML(){
   return `<div class="login-screen"><div style="color:var(--ink-soft);font-size:14px;">Carregando…</div></div>`;
+}
+function erroCarregamentoHTML(){
+  return `<div class="login-screen">
+    <div class="login-card">
+      <div class="login-brand"><div class="logo-chip"><img src="${LOGO_DATA_URI}" alt="NOVYX"></div></div>
+      <div style="text-align:center;font-size:14px;color:var(--ink);font-weight:600;margin-bottom:8px;">Não foi possível carregar os dados do OneDrive</div>
+      <div style="text-align:center;font-size:13px;color:var(--ink-soft);margin-bottom:18px;">Pode ser sua conexão com a internet, ou o login da Microsoft expirou. <strong>Nenhum dado foi apagado ou alterado</strong> — o app parou de propósito antes de mostrar qualquer tela, para nunca arriscar sobrescrever suas informações por engano.</div>
+      <button class="btn btn-primary btn-block" id="tentarNovamenteBtn">Tentar novamente</button>
+    </div>
+  </div>`;
+}
+function bindErroCarregamentoEvents(){
+  const btn = document.getElementById('tentarNovamenteBtn');
+  if(btn) btn.addEventListener('click', ()=>loadAll());
 }
 
 /* =======================================================================
@@ -848,7 +911,7 @@ function bottomNavHTML(){
   return `<div class="bottom-nav no-print">${items.map(i=>`<button class="bn-item ${state.view===i.id?'active':''}" data-nav="${i.id}">${i.icon}<span>${i.label}</span></button>`).join('')}</div>`;
 }
 function topbarHTML(){
-  const titles = {dashboard:'Painel geral', agenda:'Agenda de atendimentos', clientes:'Clientes', orcamentos: state.role==='cliente'?'Meus orçamentos':'Orçamentos', checklists:'Checklists de serviço', contratos:'Contratos de manutenção', usuarios:'Usuários e perfis de acesso'};
+  const titles = {dashboard:'Painel geral', agenda:'Agenda de atendimentos', clientes:'Clientes', orcamentos: state.role==='cliente'?'Meus orçamentos':'Orçamentos', checklists:'Checklists de serviço', contratos:'Contratos de manutenção', monitoramento:'Monitoramento colaborativo', usuarios:'Usuários e perfis de acesso'};
   const roleLabel = {admin:'Administrador', colaborador:'Colaborador', cliente:'Cliente'}[state.role];
   return `
   <div class="topbar no-print">
@@ -867,6 +930,7 @@ function viewHTML(){
   if(state.view==='orcamentos') return orcamentosHTML();
   if(state.view==='checklists') return checklistsHTML();
   if(state.view==='contratos') return contratosHTML();
+  if(state.view==='monitoramento') return monitoramentoHTML();
   if(state.view==='usuarios') return usuariosHTML();
   return '';
 }
@@ -893,6 +957,12 @@ function dashboardHTML(){
   // Orçamentos que precisam de atenção: enviados há mais tempo primeiro (aguardando resposta há mais dias sobem ao topo)
   const precisamAtencao = [...orcPend].sort((a,b)=>a.data.localeCompare(b.data)).slice(0,5);
 
+  const assinaturasAtivas = state.monitoramentoAssinaturas.filter(a=>a.status==='ativa');
+  const compAtual = todayISO().slice(0,7);
+  const cobrancasCompAtual = state.monitoramentoCobrancas.filter(c=>c.competencia===compAtual);
+  const monitEsperado = cobrancasCompAtual.reduce((s,c)=>s+(c.status!=='isento'?Number(c.valor):0),0);
+  const monitAtrasadas = cobrancasCompAtual.filter(c=>statusCobranca(c).label==='Atrasado').length;
+
   return `
   <div class="section-head" style="margin-bottom:14px;">
     <div class="toolbar" style="font-size:13px;color:var(--ink-soft);">Atalhos rápidos:</div>
@@ -909,6 +979,7 @@ function dashboardHTML(){
     ${canSeeFinanceiro() ? `<div class="card kpi" data-nav="orcamentos" style="cursor:pointer;"><div class="label"><span class="led led-green"></span> Aprovado este mês</div><div class="value" style="font-size:22px;">${fmtMoney(valorAprovadoMes)}</div><div class="foot">${orcAprovMes.length} orçamento(s) · histórico total: ${fmtMoney(valorAprovado)}</div></div>` : ''}
     <div class="card kpi" data-nav="checklists" style="cursor:pointer;"><div class="label"><span class="led led-red"></span> Checklists c/ pendência</div><div class="value">${checkPend}</div><div class="foot">itens marcados para acompanhamento</div></div>
     <div class="card kpi" data-nav="contratos" style="cursor:pointer;"><div class="label"><span class="led ${contratosVencidos>0?'led-red':'led-amber'}"></span> Manutenções a vencer</div><div class="value">${contratosProximos+contratosVencidos}</div><div class="foot">${contratosVencidos>0? contratosVencidos+' vencida(s) · '+contratosProximos+' nos próx. 30 dias' : contratosProximos+' nos próximos 30 dias'}</div></div>
+    ${assinaturasAtivas.length>0 ? `<div class="card kpi" data-nav="monitoramento" style="cursor:pointer;"><div class="label"><span class="led ${monitAtrasadas>0?'led-red':'led-green'}"></span> Monitoramento colaborativo</div><div class="value" style="font-size:20px;">${fmtMoney(monitEsperado)}</div><div class="foot">${assinaturasAtivas.length} assinatura(s) ativa(s)${monitAtrasadas>0?' · '+monitAtrasadas+' em atraso':''}</div></div>` : ''}
   </div>
   ${!canSeeFinanceiro() ? `<div class="card" style="margin-bottom:18px;font-size:13px;color:var(--ink-soft);">O reporte financeiro completo (valores aprovados e faturamento) é visível apenas para administradores.</div>` : ''}
 
@@ -2052,6 +2123,235 @@ function contratoPrintContent(contrato){
 }
 
 /* =======================================================================
+   MONITORAMENTO COLABORATIVO — controle operacional de assinaturas e cobranças
+   IMPORTANTE: este módulo NÃO processa pagamento nenhum. Ele só registra, manualmente,
+   o status de cobranças recorrentes (o dinheiro em si passa por fora — Pix, boleto, etc.
+   combinados diretamente com o cliente, ou por um gateway de pagamento à parte no futuro).
+   ======================================================================= */
+function planosDeMonitoramento(){ return state.monitoramentoPlanos; }
+function assinaturasDoCliente(clienteId){ return state.monitoramentoAssinaturas.filter(a=>a.clienteId===clienteId); }
+function cobrancasDaAssinatura(assinaturaId){ return state.monitoramentoCobrancas.filter(c=>c.assinaturaId===assinaturaId).sort((a,b)=>b.competencia.localeCompare(a.competencia)); }
+function statusAssinatura(a){
+  if(a.status==='cancelada') return {label:'Cancelada', badge:'badge-gray', led:'led-gray'};
+  if(a.status==='suspensa') return {label:'Suspensa', badge:'badge-amber', led:'led-amber'};
+  return {label:'Ativa', badge:'badge-green', led:'led-green'};
+}
+function statusCobranca(c){
+  if(c.status==='pago') return {label:'Pago', badge:'badge-green', led:'led-green'};
+  if(c.status==='isento') return {label:'Isento', badge:'badge-gray', led:'led-gray'};
+  // pendente: verifica se já venceu
+  const hoje = todayISO();
+  if(c.vencimento < hoje) return {label:'Atrasado', badge:'badge-red', led:'led-red'};
+  return {label:'Pendente', badge:'badge-amber', led:'led-amber'};
+}
+function competenciaLabel(comp){ // 'AAAA-MM' -> 'Mês/AAAA'
+  const [ano,mes] = comp.split('-');
+  return MESES_NOME[Number(mes)-1]+'/'+ano;
+}
+
+function monitoramentoHTML(){
+  if(!state.monitoramentoAba) state.monitoramentoAba = 'assinaturas';
+  const aba = state.monitoramentoAba;
+  return `
+  <div class="cal-toolbar" style="margin-bottom:18px;">
+    <div class="cal-viewtabs">
+      <button data-monit-aba="assinaturas" class="${aba==='assinaturas'?'active':''}">Assinaturas</button>
+      <button data-monit-aba="cobrancas" class="${aba==='cobrancas'?'active':''}">Cobranças</button>
+      ${state.role==='admin' ? `<button data-monit-aba="planos" class="${aba==='planos'?'active':''}">Planos</button>` : ''}
+    </div>
+  </div>
+  ${aba==='assinaturas' ? monitoramentoAssinaturasHTML() : aba==='cobrancas' ? monitoramentoCobrancasHTML() : monitoramentoPlanosHTML()}
+  `;
+}
+
+/* --- Aba: Planos --- */
+function monitoramentoPlanosHTML(){
+  const planos = state.monitoramentoPlanos;
+  return `
+  <div class="section-head">
+    <div class="toolbar" style="font-size:13px;color:var(--ink-soft);max-width:520px;">Planos são modelos reutilizáveis de mensalidade (ex.: "Básico — R$ 39,90/mês"). Cada cliente assina um plano na aba Assinaturas.</div>
+    <button class="btn btn-primary" id="novoPlanoBtn">${ICONS.plus} Novo plano</button>
+  </div>
+  ${planos.length===0 ? emptyState('Nenhum plano cadastrado','Crie o primeiro plano de monitoramento colaborativo, com nome e valor mensal.') :
+    `<div class="list">${planos.map(p=>`
+      <div class="list-item" data-plano-open="${p.id}">
+        <div class="li-main"><div class="li-title">${escapeHTML(p.nome)}</div><div class="li-sub">${escapeHTML(p.descricao||'')}</div></div>
+        <div class="li-right"><strong>${fmtMoney(p.valorMensal)}/mês</strong> ${ICONS.chevron}</div>
+      </div>`).join('')}</div>`}
+  `;
+}
+function planoModalHTML(plano){
+  const p = plano || {id:null, nome:'', valorMensal:0, descricao:''};
+  return `
+  <div class="overlay" id="modalOverlay" ${plano?`data-edit-id="${plano.id}"`:''}>
+    <div class="modal">
+      <div class="modal-head"><h3>${plano?'Editar plano':'Novo plano'}</h3><button class="icon-btn" id="closeModal">${ICONS.close}</button></div>
+      <div class="modal-body">
+        <div class="field"><label>Nome do plano *</label><input type="text" id="f_planoNome" value="${escapeAttr(p.nome)}" placeholder="Ex.: Básico, Premium..."></div>
+        <div class="field"><label>Valor mensal (R$) *</label><input type="number" id="f_planoValor" value="${p.valorMensal||0}" min="0" step="0.01"></div>
+        <div class="field"><label>Descrição (opcional)</label><textarea id="f_planoDescricao" rows="2">${escapeHTML(p.descricao)}</textarea></div>
+      </div>
+      <div class="modal-foot">
+        ${plano ? `<button class="btn btn-danger-ghost" id="delPlano">${ICONS.trash} Excluir</button>` : ''}
+        <div style="flex:1;"></div>
+        <button class="btn btn-ghost" id="cancelModal">Cancelar</button>
+        <button class="btn btn-primary" id="savePlano">Salvar plano</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* --- Aba: Assinaturas --- */
+function monitoramentoAssinaturasHTML(){
+  const list = state.monitoramentoAssinaturas.slice().sort((a,b)=>statusAssinatura(a).label.localeCompare(statusAssinatura(b).label));
+  return `
+  <div class="section-head">
+    <div class="toolbar"></div>
+    <button class="btn btn-primary" id="novaAssinaturaBtn">${ICONS.plus} Nova assinatura</button>
+  </div>
+  ${list.length===0 ? emptyState('Nenhuma assinatura de monitoramento ainda','Cadastre um plano (aba Planos) e depois assine um cliente nele.') :
+    `<div class="list">${list.map(a=>assinaturaRowHTML(a)).join('')}</div>`}
+  `;
+}
+function assinaturaRowHTML(a){
+  const cliente = state.clientes.find(c=>c.id===a.clienteId);
+  const plano = state.monitoramentoPlanos.find(p=>p.id===a.planoId);
+  const st = statusAssinatura(a);
+  return `
+  <div class="list-item" data-assinatura-open="${a.id}">
+    <div class="li-main">
+      <div class="li-title">${cliente?escapeHTML(cliente.nome):'Cliente removido'}</div>
+      <div class="li-sub">${plano?escapeHTML(plano.nome):'—'} · vencimento dia ${a.diaVencimento}</div>
+    </div>
+    <div class="li-right"><strong>${plano?fmtMoney(plano.valorMensal):'—'}</strong> <span class="badge ${st.badge}"><span class="led ${st.led}"></span>${st.label}</span> ${ICONS.chevron}</div>
+  </div>`;
+}
+function assinaturaModalHTML(assinatura){
+  const a = assinatura || {id:null, clienteId:'', planoId:'', diaVencimento:10, dataInicio:todayISO(), status:'ativa', observacoes:''};
+  return `
+  <div class="overlay" id="modalOverlay" ${assinatura?`data-edit-id="${assinatura.id}"`:''}>
+    <div class="modal">
+      <div class="modal-head"><h3>${assinatura?'Editar assinatura':'Nova assinatura de monitoramento'}</h3><button class="icon-btn" id="closeModal">${ICONS.close}</button></div>
+      <div class="modal-body">
+        <div class="field"><label>Cliente *</label>
+          <select id="f_assinCliente">
+            <option value="">Selecione…</option>
+            ${state.clientes.filter(c=>c.ativo!==false).map(c=>`<option value="${c.id}" ${a.clienteId===c.id?'selected':''}>${escapeHTML(c.nome)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Plano *</label>
+            <select id="f_assinPlano">
+              <option value="">Selecione…</option>
+              ${state.monitoramentoPlanos.map(p=>`<option value="${p.id}" ${a.planoId===p.id?'selected':''}>${escapeHTML(p.nome)} — ${fmtMoney(p.valorMensal)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field"><label>Dia do vencimento</label><input type="number" id="f_assinDia" value="${a.diaVencimento||10}" min="1" max="28"></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Início da assinatura</label><input type="date" id="f_assinInicio" value="${a.dataInicio}"></div>
+          <div class="field"><label>Status</label>
+            <select id="f_assinStatus">
+              <option value="ativa" ${a.status==='ativa'?'selected':''}>Ativa</option>
+              <option value="suspensa" ${a.status==='suspensa'?'selected':''}>Suspensa</option>
+              <option value="cancelada" ${a.status==='cancelada'?'selected':''}>Cancelada</option>
+            </select>
+          </div>
+        </div>
+        <div class="field"><label>Observações</label><textarea id="f_assinObs" rows="2">${escapeHTML(a.observacoes)}</textarea></div>
+      </div>
+      <div class="modal-foot">
+        ${assinatura ? `<button class="btn btn-danger-ghost" id="delAssinatura">${ICONS.trash} Excluir</button>` : ''}
+        <div style="flex:1;"></div>
+        <button class="btn btn-ghost" id="cancelModal">Cancelar</button>
+        <button class="btn btn-primary" id="saveAssinatura">Salvar assinatura</button>
+      </div>
+    </div>
+  </div>`;
+}
+function assinaturaDetailHTML(a){
+  const cliente = state.clientes.find(c=>c.id===a.clienteId);
+  const plano = state.monitoramentoPlanos.find(p=>p.id===a.planoId);
+  const st = statusAssinatura(a);
+  const cobrancas = cobrancasDaAssinatura(a.id);
+  return `
+  <div class="overlay" id="modalOverlay" data-assinatura-detail-id="${a.id}">
+    <div class="modal">
+      <div class="modal-head">
+        <h3>${cliente?escapeHTML(cliente.nome):'Cliente removido'}</h3>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost btn-sm" id="editAssinaturaBtn">Editar</button>
+          <button class="icon-btn" id="closeModal">${ICONS.close}</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div style="font-size:13.5px;color:var(--ink-soft);margin-bottom:16px;line-height:1.7;">
+          <div><strong style="color:var(--ink);">Plano:</strong> ${plano?escapeHTML(plano.nome)+' — '+fmtMoney(plano.valorMensal)+'/mês':'—'}</div>
+          <div><strong style="color:var(--ink);">Vencimento:</strong> dia ${a.diaVencimento} de cada mês</div>
+          <div><strong style="color:var(--ink);">Status:</strong> <span class="badge ${st.badge}"><span class="led ${st.led}"></span>${st.label}</span></div>
+          ${a.observacoes ? `<div style="margin-top:6px;">${escapeHTML(a.observacoes)}</div>` : ''}
+        </div>
+        <h3 style="font-size:14.5px;margin-bottom:8px;">Histórico de cobranças (${cobrancas.length})</h3>
+        <div class="list">${cobrancas.length? cobrancas.map(c=>cobrancaRowHTML(c,true)).join('') : '<div class="li-sub" style="padding:6px 2px;">Nenhuma cobrança gerada ainda.</div>'}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* --- Aba: Cobranças --- */
+function monitoramentoCobrancasHTML(){
+  if(!state.monitCompetencia) state.monitCompetencia = todayISO().slice(0,7);
+  const comp = state.monitCompetencia;
+  const cobrancas = state.monitoramentoCobrancas.filter(c=>c.competencia===comp);
+  const assinaturasAtivas = state.monitoramentoAssinaturas.filter(a=>a.status==='ativa');
+  const semCobranca = assinaturasAtivas.filter(a=>!cobrancas.some(c=>c.assinaturaId===a.id));
+
+  const totalEsperado = cobrancas.reduce((s,c)=>s+(c.status!=='isento'?Number(c.valor):0),0);
+  const totalRecebido = cobrancas.filter(c=>c.status==='pago').reduce((s,c)=>s+Number(c.valor),0);
+  const totalAtrasado = cobrancas.filter(c=>statusCobranca(c).label==='Atrasado').reduce((s,c)=>s+Number(c.valor),0);
+
+  return `
+  <div class="cal-toolbar" style="margin-bottom:16px;">
+    <input type="month" id="monitCompetenciaInput" value="${comp}" style="width:160px;">
+    <span style="font-size:14px;font-weight:700;font-family:'Space Grotesk';">${competenciaLabel(comp)}</span>
+    <div style="flex:1;"></div>
+    ${semCobranca.length>0 ? `<button class="btn btn-ghost btn-sm" id="gerarCobrancasBtn">${ICONS.plus} Gerar ${semCobranca.length} cobrança(s) do mês</button>` : ''}
+  </div>
+  ${canSeeFinanceiro() ? `<div class="grid kpi-grid" style="margin-bottom:18px;">
+    <div class="card kpi"><div class="label">Esperado no mês</div><div class="value" style="font-size:20px;">${fmtMoney(totalEsperado)}</div></div>
+    <div class="card kpi"><div class="label"><span class="led led-green"></span> Recebido</div><div class="value" style="font-size:20px;">${fmtMoney(totalRecebido)}</div></div>
+    <div class="card kpi"><div class="label"><span class="led led-red"></span> Em atraso</div><div class="value" style="font-size:20px;">${fmtMoney(totalAtrasado)}</div></div>
+  </div>` : ''}
+  ${cobrancas.length===0 ? emptyState('Nenhuma cobrança neste mês', semCobranca.length>0 ? 'Clique em "Gerar cobranças do mês" acima para criar automaticamente a cobrança de cada assinatura ativa.' : 'Cadastre assinaturas ativas primeiro.') :
+    `<div class="list">${cobrancas.sort((a,b)=>a.vencimento.localeCompare(b.vencimento)).map(c=>cobrancaRowHTML(c)).join('')}</div>`}
+  `;
+}
+function cobrancaRowHTML(c, ocultarAcoes){
+  const assinatura = state.monitoramentoAssinaturas.find(a=>a.id===c.assinaturaId);
+  const cliente = assinatura ? state.clientes.find(cl=>cl.id===assinatura.clienteId) : null;
+  const st = statusCobranca(c);
+  const podeMarcarPago = c.status==='pendente';
+  return `
+  <div class="list-item">
+    <div class="li-main">
+      <div class="li-title">${cliente?escapeHTML(cliente.nome):'Cliente removido'} <span style="font-weight:400;color:var(--ink-faint);font-size:12.5px;">· ${competenciaLabel(c.competencia)}</span></div>
+      <div class="li-sub">Vencimento: ${fmtDate(c.vencimento)}${c.dataPagamento?' · Pago em '+fmtDate(c.dataPagamento):''}${c.formaPagamento?' · '+escapeHTML(c.formaPagamento):''}</div>
+    </div>
+    <div class="li-right" style="gap:8px;">
+      <strong>${fmtMoney(c.valor)}</strong>
+      <span class="badge ${st.badge}"><span class="led ${st.led}"></span>${st.label}</span>
+      ${!ocultarAcoes && podeMarcarPago ? `<button class="btn btn-signal btn-sm" data-cobranca-pagar="${c.id}">Marcar pago</button>` : ''}
+      ${!ocultarAcoes && c.status==='pago' ? `<button class="btn btn-ghost btn-sm" data-cobranca-desfazer="${c.id}">Desfazer</button>` : ''}
+      ${!ocultarAcoes && st.label==='Atrasado' && cliente && cliente.telefone ? `<button class="btn btn-ghost btn-sm" data-cobranca-lembrete="${c.id}" title="Lembrete por WhatsApp">${ICONS.whatsapp}</button>` : ''}
+    </div>
+  </div>`;
+}
+function cobrancaLembreteText(c, cliente, plano){
+  return `Olá, ${cliente.nome}! Passando para lembrar da mensalidade do monitoramento colaborativo (${plano?plano.nome:''}) referente a ${competenciaLabel(c.competencia)}, no valor de ${fmtMoney(c.valor)}, vencida em ${fmtDate(c.vencimento)}. Qualquer dúvida, estamos à disposição! 😊`;
+}
+
+
+/* =======================================================================
    EQUIPAMENTOS — ficha por câmera/sensor/central, com histórico próprio
    ======================================================================= */
 const TIPOS_EQUIPAMENTO = ['Câmera','DVR/NVR','Central de alarme','Sensor','Fechadura/Controle de acesso','Nobreak','Outro'];
@@ -2609,6 +2909,76 @@ function bindGlobalEvents(){
   if(agendaDataInput) agendaDataInput.addEventListener('change', e=>{ state.agendaData = e.target.value || todayISO(); render(); });
   const agendaHojeBtn = document.getElementById('agendaHojeBtn');
   if(agendaHojeBtn) agendaHojeBtn.addEventListener('click', ()=>{ state.agendaData = todayISO(); render(); });
+  /* --- Monitoramento Colaborativo --- */
+  document.querySelectorAll('[data-monit-aba]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ state.monitoramentoAba = btn.getAttribute('data-monit-aba'); render(); });
+  });
+  const novoPlanoBtn = document.getElementById('novoPlanoBtn');
+  if(novoPlanoBtn) novoPlanoBtn.addEventListener('click', ()=>openModal(planoModalHTML()));
+  document.querySelectorAll('[data-plano-open]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const p = state.monitoramentoPlanos.find(x=>x.id===el.getAttribute('data-plano-open'));
+      if(p) openModal(planoModalHTML(p));
+    });
+  });
+  const novaAssinaturaBtn = document.getElementById('novaAssinaturaBtn');
+  if(novaAssinaturaBtn) novaAssinaturaBtn.addEventListener('click', ()=>{
+    if(state.monitoramentoPlanos.length===0){ toast('Cadastre um plano antes de criar uma assinatura'); return; }
+    openModal(assinaturaModalHTML());
+  });
+  document.querySelectorAll('[data-assinatura-open]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const a = state.monitoramentoAssinaturas.find(x=>x.id===el.getAttribute('data-assinatura-open'));
+      if(a) openModal(assinaturaDetailHTML(a));
+    });
+  });
+  const monitCompetenciaInput = document.getElementById('monitCompetenciaInput');
+  if(monitCompetenciaInput) monitCompetenciaInput.addEventListener('change', e=>{ state.monitCompetencia = e.target.value; render(); });
+  const gerarCobrancasBtn = document.getElementById('gerarCobrancasBtn');
+  if(gerarCobrancasBtn) gerarCobrancasBtn.addEventListener('click', async ()=>{
+    const comp = state.monitCompetencia;
+    const [ano,mes] = comp.split('-').map(Number);
+    const assinaturasAtivas = state.monitoramentoAssinaturas.filter(a=>a.status==='ativa');
+    let criadas = 0;
+    assinaturasAtivas.forEach(a=>{
+      if(state.monitoramentoCobrancas.some(c=>c.assinaturaId===a.id && c.competencia===comp)) return;
+      const plano = state.monitoramentoPlanos.find(p=>p.id===a.planoId);
+      if(!plano) return;
+      const dia = Math.min(a.diaVencimento||10, 28);
+      const vencimento = `${ano}-${String(mes).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
+      state.monitoramentoCobrancas.push({id:uid(), assinaturaId:a.id, competencia:comp, valor:plano.valorMensal, vencimento, status:'pendente', dataPagamento:'', formaPagamento:'', criadoEm:Date.now()});
+      criadas++;
+    });
+    if(criadas===0){ toast('Todas as assinaturas ativas já têm cobrança gerada neste mês'); return; }
+    await saveMonitoramentoCobrancas(); render();
+    toast(criadas+' cobrança(s) gerada(s) para '+competenciaLabel(comp));
+  });
+  document.querySelectorAll('[data-cobranca-pagar]').forEach(el=>{
+    el.addEventListener('click', async ()=>{
+      const c = state.monitoramentoCobrancas.find(x=>x.id===el.getAttribute('data-cobranca-pagar'));
+      if(!c) return;
+      c.status = 'pago'; c.dataPagamento = todayISO();
+      await saveMonitoramentoCobrancas(); render(); toast('Cobrança marcada como paga');
+    });
+  });
+  document.querySelectorAll('[data-cobranca-desfazer]').forEach(el=>{
+    el.addEventListener('click', async ()=>{
+      const c = state.monitoramentoCobrancas.find(x=>x.id===el.getAttribute('data-cobranca-desfazer'));
+      if(!c) return;
+      c.status = 'pendente'; c.dataPagamento = ''; c.formaPagamento = '';
+      await saveMonitoramentoCobrancas(); render(); toast('Cobrança voltou para pendente');
+    });
+  });
+  document.querySelectorAll('[data-cobranca-lembrete]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const c = state.monitoramentoCobrancas.find(x=>x.id===el.getAttribute('data-cobranca-lembrete'));
+      const assinatura = c ? state.monitoramentoAssinaturas.find(a=>a.id===c.assinaturaId) : null;
+      const cliente = assinatura ? state.clientes.find(cl=>cl.id===assinatura.clienteId) : null;
+      const plano = assinatura ? state.monitoramentoPlanos.find(p=>p.id===assinatura.planoId) : null;
+      if(c && cliente) window.open(waLink(cliente.telefone, cobrancaLembreteText(c, cliente, plano)), '_blank');
+    });
+  });
+
   document.querySelectorAll('[data-cal-view]').forEach(btn=>{
     btn.addEventListener('click', ()=>{ state.agendaView = btn.getAttribute('data-cal-view'); render(); });
   });
@@ -2802,6 +3172,67 @@ function bindModalEvents(){
       endereco: document.getElementById('f_empEndereco').value.trim(),
     };
     await saveEmpresa(); closeModalEl(); render(); toast('Dados da empresa salvos');
+  });
+  const savePlanoBtn = document.getElementById('savePlano');
+  if(savePlanoBtn) savePlanoBtn.addEventListener('click', async ()=>{
+    const nome = document.getElementById('f_planoNome').value.trim();
+    const valorMensal = Number(document.getElementById('f_planoValor').value)||0;
+    if(!nome){ toast('Informe o nome do plano'); return; }
+    const data = {nome, valorMensal, descricao: document.getElementById('f_planoDescricao').value.trim()};
+    const editId = overlay.getAttribute('data-edit-id');
+    if(editId){
+      const idx = state.monitoramentoPlanos.findIndex(p=>p.id===editId);
+      state.monitoramentoPlanos[idx] = {...state.monitoramentoPlanos[idx], ...data};
+    }else{
+      state.monitoramentoPlanos.push({id:uid(), ...data});
+    }
+    await saveMonitoramentoPlanos(); closeModalEl(); render(); toast('Plano salvo com sucesso');
+  });
+  const delPlanoBtn = document.getElementById('delPlano');
+  if(delPlanoBtn) delPlanoBtn.addEventListener('click', async ()=>{
+    const editId = overlay.getAttribute('data-edit-id');
+    if(!editId) return;
+    if(state.monitoramentoAssinaturas.some(a=>a.planoId===editId)){ toast('Existem assinaturas usando este plano — remova ou altere-as primeiro'); return; }
+    if(!confirm('Excluir este plano?')) return;
+    state.monitoramentoPlanos = state.monitoramentoPlanos.filter(p=>p.id!==editId);
+    await saveMonitoramentoPlanos(); closeModalEl(); render(); toast('Plano excluído');
+  });
+  const saveAssinaturaBtn = document.getElementById('saveAssinatura');
+  if(saveAssinaturaBtn) saveAssinaturaBtn.addEventListener('click', async ()=>{
+    const clienteId = document.getElementById('f_assinCliente').value;
+    const planoId = document.getElementById('f_assinPlano').value;
+    if(!clienteId || !planoId){ toast('Selecione cliente e plano'); return; }
+    const data = {
+      clienteId, planoId,
+      diaVencimento: Math.min(Math.max(Number(document.getElementById('f_assinDia').value)||10,1),28),
+      dataInicio: document.getElementById('f_assinInicio').value,
+      status: document.getElementById('f_assinStatus').value,
+      observacoes: document.getElementById('f_assinObs').value.trim(),
+    };
+    const editId = overlay.getAttribute('data-edit-id');
+    if(editId){
+      const idx = state.monitoramentoAssinaturas.findIndex(a=>a.id===editId);
+      state.monitoramentoAssinaturas[idx] = {...state.monitoramentoAssinaturas[idx], ...data};
+    }else{
+      state.monitoramentoAssinaturas.push({id:uid(), ...data});
+    }
+    await saveMonitoramentoAssinaturas(); closeModalEl(); render(); toast('Assinatura salva com sucesso');
+  });
+  const delAssinaturaBtn = document.getElementById('delAssinatura');
+  if(delAssinaturaBtn) delAssinaturaBtn.addEventListener('click', async ()=>{
+    const editId = overlay.getAttribute('data-edit-id');
+    if(!editId) return;
+    if(!confirm('Excluir esta assinatura e todo o histórico de cobranças vinculado a ela?')) return;
+    state.monitoramentoCobrancas = state.monitoramentoCobrancas.filter(c=>c.assinaturaId!==editId);
+    state.monitoramentoAssinaturas = state.monitoramentoAssinaturas.filter(a=>a.id!==editId);
+    await Promise.all([saveMonitoramentoAssinaturas(), saveMonitoramentoCobrancas()]);
+    closeModalEl(); render(); toast('Assinatura excluída');
+  });
+  const editAssinaturaBtn = document.getElementById('editAssinaturaBtn');
+  if(editAssinaturaBtn) editAssinaturaBtn.addEventListener('click', ()=>{
+    const id = overlay.getAttribute('data-assinatura-detail-id');
+    const a = state.monitoramentoAssinaturas.find(x=>x.id===id);
+    closeModalEl(); if(a) openModal(assinaturaModalHTML(a));
   });
   overlay.addEventListener('click', e=>{
     const img = e.target.closest('img.photo-clickable');
