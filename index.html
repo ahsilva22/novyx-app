@@ -252,10 +252,10 @@ label{font-size:12.5px;font-weight:600;color:var(--ink-soft);display:block;margi
   .row2,.row3{grid-template-columns:1fr;}
   .row-addr{grid-template-columns:1fr 1fr;}
   .bottom-nav{
-    display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--surface);
+    display:flex;overflow-x:auto;scrollbar-width:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);
     border-top:1px solid var(--line);z-index:50;padding:6px 4px calc(env(safe-area-inset-bottom) + 4px) 4px;
   }
-  .bn-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 4px;background:none;border:none;color:var(--ink-faint);font-size:10.5px;font-weight:600;border-radius:8px;}
+  .bn-item{flex:1 0 auto;min-width:66px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 4px;background:none;border:none;color:var(--ink-faint);font-size:10.5px;font-weight:600;border-radius:8px;}
   .bn-item.active{color:var(--primary);}
   .modal{max-width:100%;margin:0;}
   .overlay{padding:0;align-items:stretch;}
@@ -338,6 +338,8 @@ const STORE = {
   checklists: 'checklists.json',
   contratos: 'contratos.json',
   equipamentos: 'equipamentos.json',
+  produtos: 'produtos.json',
+  fornecedores: 'fornecedores.json',
   monitoramentoPlanos: 'monitoramento_planos.json',
   monitoramentoAssinaturas: 'monitoramento_assinaturas.json',
   monitoramentoCobrancas: 'monitoramento_cobrancas.json',
@@ -354,6 +356,11 @@ let state = {
   checklists: [],
   contratos: [],
   equipamentos: [],
+  produtos: [],
+  fornecedores: [],
+  catalogoAba: 'produtos',
+  produtoBusca: '',
+  produtoFiltroFornecedor: 'todos',
   monitoramentoPlanos: [],
   monitoramentoAssinaturas: [],
   monitoramentoCobrancas: [],
@@ -400,6 +407,8 @@ async function loadAll(){
   r.checklists = await safeGet(STORE.checklists);
   r.contratos = await safeGet(STORE.contratos);
   r.equipamentos = await safeGet(STORE.equipamentos);
+  r.produtos = await safeGet(STORE.produtos);
+  r.fornecedores = await safeGet(STORE.fornecedores);
   r.monitoramentoPlanos = await safeGet(STORE.monitoramentoPlanos);
   r.monitoramentoAssinaturas = await safeGet(STORE.monitoramentoAssinaturas);
   r.monitoramentoCobrancas = await safeGet(STORE.monitoramentoCobrancas);
@@ -422,6 +431,8 @@ async function loadAll(){
   state.checklists = r.checklists.value ? JSON.parse(r.checklists.value) : [];
   state.contratos = r.contratos.value ? JSON.parse(r.contratos.value) : [];
   state.equipamentos = r.equipamentos.value ? JSON.parse(r.equipamentos.value) : [];
+  state.produtos = r.produtos.value ? JSON.parse(r.produtos.value) : [];
+  state.fornecedores = r.fornecedores.value ? JSON.parse(r.fornecedores.value) : [];
   state.monitoramentoPlanos = r.monitoramentoPlanos.value ? JSON.parse(r.monitoramentoPlanos.value) : [];
   state.monitoramentoAssinaturas = r.monitoramentoAssinaturas.value ? JSON.parse(r.monitoramentoAssinaturas.value) : [];
   state.monitoramentoCobrancas = r.monitoramentoCobrancas.value ? JSON.parse(r.monitoramentoCobrancas.value) : [];
@@ -473,6 +484,8 @@ async function saveOrcamentos(){ try{ await graphPutFile(STORE.orcamentos, JSON.
 async function saveChecklists(){ try{ await graphPutFile(STORE.checklists, JSON.stringify(state.checklists)); }catch(e){ toast('Erro ao salvar checklists no OneDrive'); } }
 async function saveContratos(){ try{ await graphPutFile(STORE.contratos, JSON.stringify(state.contratos)); }catch(e){ toast('Erro ao salvar contratos no OneDrive'); } }
 async function saveEquipamentos(){ try{ await graphPutFile(STORE.equipamentos, JSON.stringify(state.equipamentos)); }catch(e){ toast('Erro ao salvar equipamentos no OneDrive'); } }
+async function saveProdutos(){ try{ await graphPutFile(STORE.produtos, JSON.stringify(state.produtos)); }catch(e){ toast('Erro ao salvar produtos no OneDrive'); } }
+async function saveFornecedores(){ try{ await graphPutFile(STORE.fornecedores, JSON.stringify(state.fornecedores)); }catch(e){ toast('Erro ao salvar fornecedores no OneDrive'); } }
 async function saveMonitoramentoPlanos(){ try{ await graphPutFile(STORE.monitoramentoPlanos, JSON.stringify(state.monitoramentoPlanos)); }catch(e){ toast('Erro ao salvar planos no OneDrive'); } }
 async function saveMonitoramentoAssinaturas(){ try{ await graphPutFile(STORE.monitoramentoAssinaturas, JSON.stringify(state.monitoramentoAssinaturas)); }catch(e){ toast('Erro ao salvar assinaturas no OneDrive'); } }
 async function saveMonitoramentoCobrancas(){ try{ await graphPutFile(STORE.monitoramentoCobrancas, JSON.stringify(state.monitoramentoCobrancas)); }catch(e){ toast('Erro ao salvar cobranças no OneDrive'); } }
@@ -640,6 +653,7 @@ const ICONS = {
   folder:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3.5 6.5a1 1 0 0 1 1-1h4.5l1.8 2H19a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4.5a1 1 0 0 1-1-1z"/></svg>',
   camera2:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7H8l1.2-2h5.6L16 7h2.5A1.5 1.5 0 0 1 20 8.5v9A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="12.5" r="3.3"/></svg>',
   agenda:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3.5" y="5" width="17" height="16" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><circle cx="8.5" cy="14" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="14" r="1.1" fill="currentColor" stroke="none"/><circle cx="8.5" cy="17.3" r="1.1" fill="currentColor" stroke="none"/></svg>',
+  caixa:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5z"/><path d="M3.5 7.5 12 12l8.5-4.5M12 12v9"/></svg>',
   monitor:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3.5 4.5 6.5v5c0 5 3.3 8.3 7.5 9.5 4.2-1.2 7.5-4.5 7.5-9.5v-5z"/><path d="M9 12.2l2 2 4-4.2"/></svg>',
   cifrao:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M16.5 7.5c0-1.9-2-3-4.5-3s-4.5 1.3-4.5 3.2c0 4 9 2 9 6 0 2-2 3.3-4.5 3.3s-4.7-1.1-4.7-3"/></svg>',
   star:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/></svg>',
@@ -700,6 +714,7 @@ function navItemsForRole(role){
     {id:'agenda', label:'Agenda', icon:ICONS.agenda},
     {id:'clientes', label:'Clientes', icon:ICONS.clientes},
     {id:'orcamentos', label:'Orçamentos', icon:ICONS.orcamentos},
+    {id:'produtos', label:'Produtos', icon:ICONS.caixa},
     {id:'checklists', label:'Checklists', icon:ICONS.checklists},
     {id:'contratos', label:'Contratos', icon:ICONS.contratos},
     {id:'monitoramento', label:'Monitoramento', icon:ICONS.monitor},
@@ -911,7 +926,7 @@ function bottomNavHTML(){
   return `<div class="bottom-nav no-print">${items.map(i=>`<button class="bn-item ${state.view===i.id?'active':''}" data-nav="${i.id}">${i.icon}<span>${i.label}</span></button>`).join('')}</div>`;
 }
 function topbarHTML(){
-  const titles = {dashboard:'Painel geral', agenda:'Agenda de atendimentos', clientes:'Clientes', orcamentos: state.role==='cliente'?'Meus orçamentos':'Orçamentos', checklists:'Checklists de serviço', contratos:'Contratos de manutenção', monitoramento:'Monitoramento colaborativo', usuarios:'Usuários e perfis de acesso'};
+  const titles = {dashboard:'Painel geral', agenda:'Agenda de atendimentos', clientes:'Clientes', orcamentos: state.role==='cliente'?'Meus orçamentos':'Orçamentos', produtos:'Produtos e fornecedores', checklists:'Checklists de serviço', contratos:'Contratos de manutenção', monitoramento:'Monitoramento colaborativo', usuarios:'Usuários e perfis de acesso'};
   const roleLabel = {admin:'Administrador', colaborador:'Colaborador', cliente:'Cliente'}[state.role];
   return `
   <div class="topbar no-print">
@@ -928,6 +943,7 @@ function viewHTML(){
   if(state.view==='agenda') return agendaHTML();
   if(state.view==='clientes') return clientesHTML();
   if(state.view==='orcamentos') return orcamentosHTML();
+  if(state.view==='produtos') return produtosHTML();
   if(state.view==='checklists') return checklistsHTML();
   if(state.view==='contratos') return contratosHTML();
   if(state.view==='monitoramento') return monitoramentoHTML();
@@ -1456,6 +1472,8 @@ function orcamentoFormHTML(orc){
         <div id="enderecoSelectContainer">${enderecoSelectHTML(o.clienteId, o.enderecoId)}</div>
 
         <label>Itens do orçamento</label>
+        ${datalistProdutosHTML()}
+        <div style="font-size:12px;color:var(--ink-faint);margin:-3px 0 8px;">${state.produtos.some(p=>p.ativo!==false) ? 'Dica: ao digitar na descrição, aparecem os produtos do catálogo e o preço é preenchido sozinho. Se o item não estiver na lista, é só digitar livremente.' : 'Cadastre seus produtos em "Produtos" para agilizar. Por enquanto, digite os itens livremente.'}</div>
         <table class="items-table" id="itensTable">
           <thead><tr><th>Descrição</th><th style="width:70px;">Qtd.</th><th style="width:110px;">Valor unit.</th><th style="width:30px;"></th></tr></thead>
           <tbody>${o.itens.map(it=>itemRowHTML(it)).join('')}</tbody>
@@ -1496,8 +1514,8 @@ function orcamentoFormHTML(orc){
 }
 
 function itemRowHTML(it){
-  return `<tr data-item-id="${it.id}">
-    <td><input type="text" class="it-desc" value="${escapeAttr(it.descricao)}" placeholder="Ex.: Câmera IP 4MP com instalação"></td>
+  return `<tr data-item-id="${it.id}" data-produto-id="${escapeAttr(it.produtoId||'')}">
+    <td><input type="text" class="it-desc" list="listaProdutosCatalogo" value="${escapeAttr(it.descricao)}" placeholder="Digite ou escolha um produto do catálogo"></td>
     <td><input type="number" class="it-qtd" value="${it.qtd}" min="0" step="1"></td>
     <td><input type="number" class="it-valor" value="${it.valorUnit}" min="0" step="0.01"></td>
     <td><button class="icon-btn removeItemBtn" title="Remover item">${ICONS.close}</button></td>
@@ -2123,6 +2141,214 @@ function contratoPrintContent(contrato){
 }
 
 /* =======================================================================
+   PRODUTOS E FORNECEDORES — catálogo que agiliza a montagem de orçamentos
+   - Só administradores cadastram/editam. Colaboradores consultam (sem ver custo nem margem).
+   - O orçamento guarda uma CÓPIA da descrição e do preço no momento em que o item é usado:
+     alterar o catálogo depois NÃO muda orçamentos que já foram feitos.
+   ======================================================================= */
+const UNIDADES_PRODUTO = ['un','m','pç','cx','kit','rolo','h','serviço'];
+function podeGerenciarCatalogo(){ return state.role==='admin'; }
+function fornecedorDoProduto(p){ return state.fornecedores.find(f=>f.id===p.fornecedorId) || null; }
+function produtosDoFornecedor(fornecedorId){ return state.produtos.filter(p=>p.fornecedorId===fornecedorId); }
+function margemProduto(p){
+  const custo = Number(p.custo)||0, venda = Number(p.valorVenda)||0;
+  if(custo<=0 || venda<=0) return null;
+  return ((venda-custo)/venda)*100; // margem sobre o preço de venda
+}
+function produtoPorNome(nome){
+  const alvo = (nome||'').trim().toLowerCase();
+  if(!alvo) return null;
+  return state.produtos.find(p=>p.ativo!==false && (p.nome||'').trim().toLowerCase()===alvo) || null;
+}
+/* Lista de sugestões usada pelo campo "descrição" dos itens do orçamento */
+function datalistProdutosHTML(){
+  if(state.role==='cliente') return '';
+  const ativos = state.produtos.filter(p=>p.ativo!==false).sort((a,b)=>a.nome.localeCompare(b.nome));
+  return `<datalist id="listaProdutosCatalogo">${ativos.map(p=>{
+    const f = fornecedorDoProduto(p);
+    return `<option value="${escapeAttr(p.nome)}" label="${escapeAttr(fmtMoney(p.valorVenda)+(f?' · '+f.nome:''))}"></option>`;
+  }).join('')}</datalist>`;
+}
+
+function produtosHTML(){
+  if(state.role==='cliente') return '';
+  if(!state.catalogoAba) state.catalogoAba = 'produtos';
+  const aba = state.catalogoAba;
+  return `
+  <div class="cal-toolbar" style="margin-bottom:18px;">
+    <div class="cal-viewtabs">
+      <button data-catalogo-aba="produtos" class="${aba==='produtos'?'active':''}">Produtos (${state.produtos.length})</button>
+      <button data-catalogo-aba="fornecedores" class="${aba==='fornecedores'?'active':''}">Fornecedores (${state.fornecedores.length})</button>
+    </div>
+  </div>
+  ${aba==='produtos' ? produtosListaHTML() : fornecedoresListaHTML()}
+  `;
+}
+
+function produtosFiltrados(){
+  const q = (state.produtoBusca||'').toLowerCase().trim();
+  return state.produtos.filter(p=>{
+    if(state.produtoFiltroFornecedor && state.produtoFiltroFornecedor!=='todos' && p.fornecedorId!==state.produtoFiltroFornecedor) return false;
+    if(!q) return true;
+    const f = fornecedorDoProduto(p);
+    return [p.nome, p.codigo, p.categoria, f&&f.nome].some(v=>(v||'').toLowerCase().includes(q));
+  }).sort((a,b)=>a.nome.localeCompare(b.nome));
+}
+
+function produtosListaHTML(){
+  const lista = produtosFiltrados();
+  const admin = podeGerenciarCatalogo();
+  return `
+  <div class="section-head">
+    <div class="toolbar">
+      <div style="position:relative;">
+        <input type="text" id="produtoBuscaInput" placeholder="Buscar produto, código, categoria…" value="${escapeAttr(state.produtoBusca||'')}" style="width:260px;padding-left:32px;">
+        <span style="position:absolute;left:10px;top:9px;color:var(--ink-faint);">${ICONS.search}</span>
+      </div>
+      ${state.fornecedores.length>0 ? `<select id="produtoFiltroFornecedor" style="width:210px;">
+        <option value="todos">Todos os fornecedores</option>
+        ${state.fornecedores.map(f=>`<option value="${f.id}" ${state.produtoFiltroFornecedor===f.id?'selected':''}>${escapeHTML(f.nome)}</option>`).join('')}
+      </select>` : ''}
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost" id="exportProdutosBtn">${ICONS.excel} Excel</button>
+      ${admin ? `<button class="btn btn-primary" id="novoProdutoBtn">${ICONS.plus} Novo produto</button>` : ''}
+    </div>
+  </div>
+  ${lista.length===0
+    ? (state.produtos.length===0
+        ? emptyState('Nenhum produto cadastrado', admin ? 'Cadastre seus produtos e preços para escolher direto na hora de montar um orçamento.' : 'Peça a um administrador para cadastrar os produtos.')
+        : emptyState('Nenhum produto encontrado','Tente outro termo de busca ou limpe o filtro de fornecedor.'))
+    : `<div class="list">${lista.map(p=>produtoRowHTML(p)).join('')}</div>`}
+  `;
+}
+
+function produtoRowHTML(p){
+  const f = fornecedorDoProduto(p);
+  const admin = podeGerenciarCatalogo();
+  const margem = margemProduto(p);
+  const partes = [p.categoria, f ? f.nome : 'sem fornecedor', 'por '+(p.unidade||'un')].filter(Boolean);
+  const infoCusto = (canSeeFinanceiro() && Number(p.custo)>0)
+    ? ` · custo ${fmtMoney(p.custo)}${margem!==null ? ' · margem '+margem.toFixed(0)+'%' : ''}` : '';
+  return `
+  <div class="list-item" ${admin ? `data-produto-open="${p.id}"` : ''} style="${p.ativo===false?'opacity:.6;':''}${admin?'':'cursor:default;'}">
+    <div class="li-main">
+      <div class="li-title">${escapeHTML(p.nome)} ${p.codigo ? `<span style="font-weight:400;color:var(--ink-faint);font-size:12.5px;">· ${escapeHTML(p.codigo)}</span>` : ''} ${p.ativo===false ? '<span class="badge badge-gray">Inativo</span>' : ''}</div>
+      <div class="li-sub">${escapeHTML(partes.join(' · '))}${infoCusto}</div>
+    </div>
+    <div class="li-right"><strong>${fmtMoney(p.valorVenda)}</strong>${admin ? ICONS.chevron : ''}</div>
+  </div>`;
+}
+
+function produtoModalHTML(produto){
+  const p = produto || {id:null, nome:'', codigo:'', categoria:'', unidade:'un', fornecedorId:'', custo:0, valorVenda:0, observacoes:'', ativo:true};
+  const unidades = UNIDADES_PRODUTO.includes(p.unidade) ? UNIDADES_PRODUTO : [...UNIDADES_PRODUTO, p.unidade];
+  const categorias = Array.from(new Set(state.produtos.map(x=>x.categoria).filter(Boolean))).sort();
+  return `
+  <div class="overlay" id="modalOverlay" ${produto ? `data-edit-id="${produto.id}"` : ''}>
+    <div class="modal">
+      <div class="modal-head"><h3>${produto ? 'Editar produto' : 'Novo produto'}</h3><button class="icon-btn" id="closeModal">${ICONS.close}</button></div>
+      <div class="modal-body">
+        <div class="field"><label>Nome / descrição do item *</label><input type="text" id="f_prodNome" value="${escapeAttr(p.nome)}" placeholder="Ex.: Câmera Dome Infravermelho 2MP"></div>
+        <div class="row2">
+          <div class="field"><label>Código (opcional)</label><input type="text" id="f_prodCodigo" value="${escapeAttr(p.codigo)}"></div>
+          <div class="field"><label>Categoria (opcional)</label>
+            <input type="text" id="f_prodCategoria" list="listaCategoriasProduto" value="${escapeAttr(p.categoria)}" placeholder="Ex.: Câmeras, Cabos, Mão de obra">
+            <datalist id="listaCategoriasProduto">${categorias.map(c=>`<option value="${escapeAttr(c)}"></option>`).join('')}</datalist>
+          </div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Fornecedor</label>
+            <select id="f_prodFornecedor">
+              <option value="">Sem fornecedor</option>
+              ${state.fornecedores.map(f=>`<option value="${f.id}" ${p.fornecedorId===f.id?'selected':''}>${escapeHTML(f.nome)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field"><label>Unidade</label>
+            <select id="f_prodUnidade">${unidades.map(u=>`<option value="${escapeAttr(u)}" ${p.unidade===u?'selected':''}>${escapeHTML(u)}</option>`).join('')}</select>
+          </div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Custo (R$) — visível só para administradores</label><input type="number" id="f_prodCusto" value="${Number(p.custo)||0}" min="0" step="0.01"></div>
+          <div class="field"><label>Valor de venda (R$) *</label><input type="number" id="f_prodVenda" value="${Number(p.valorVenda)||0}" min="0" step="0.01"></div>
+        </div>
+        <div class="field"><label>Observações</label><textarea id="f_prodObs" rows="2">${escapeHTML(p.observacoes)}</textarea></div>
+        <div class="field" style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="f_prodAtivo" ${p.ativo!==false?'checked':''} style="width:auto;"> <label style="margin:0;">Ativo (aparece nas sugestões ao montar o orçamento)</label></div>
+      </div>
+      <div class="modal-foot">
+        ${produto ? `<button class="btn btn-danger-ghost" id="delProduto">${ICONS.trash} Excluir</button>` : ''}
+        <div style="flex:1;"></div>
+        <button class="btn btn-ghost" id="cancelModal">Cancelar</button>
+        <button class="btn btn-primary" id="saveProduto">Salvar produto</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function produtosExportRows(lista){
+  const verCusto = canSeeFinanceiro();
+  return lista.map(p=>{
+    const f = fornecedorDoProduto(p);
+    const row = {'Código':p.codigo||'', 'Produto':p.nome, 'Categoria':p.categoria||'', 'Unidade':p.unidade||'un', 'Fornecedor':f?f.nome:''};
+    if(verCusto) row['Custo (R$)'] = Number(p.custo)||0;
+    row['Valor de venda (R$)'] = Number(p.valorVenda)||0;
+    if(verCusto){ const m = margemProduto(p); row['Margem (%)'] = m===null ? '' : Number(m.toFixed(1)); }
+    row['Ativo'] = p.ativo===false ? 'Não' : 'Sim';
+    return row;
+  });
+}
+
+function fornecedoresListaHTML(){
+  const admin = podeGerenciarCatalogo();
+  const lista = state.fornecedores.slice().sort((a,b)=>a.nome.localeCompare(b.nome));
+  return `
+  <div class="section-head">
+    <div class="toolbar" style="font-size:13px;color:var(--ink-soft);max-width:520px;">Fornecedores de quem você compra os materiais. Vincule cada produto ao seu fornecedor no cadastro do produto.</div>
+    ${admin ? `<button class="btn btn-primary" id="novoFornecedorBtn">${ICONS.plus} Novo fornecedor</button>` : ''}
+  </div>
+  ${lista.length===0
+    ? emptyState('Nenhum fornecedor cadastrado', admin ? 'Cadastre seus fornecedores para vincular aos produtos.' : 'Peça a um administrador para cadastrar os fornecedores.')
+    : `<div class="list">${lista.map(f=>{
+        const n = produtosDoFornecedor(f.id).length;
+        const contato = [f.contato, f.telefone, f.email].filter(Boolean).join(' · ') || 'sem contato cadastrado';
+        return `<div class="list-item" ${admin ? `data-fornecedor-open="${f.id}"` : ''} style="${admin?'':'cursor:default;'}">
+          <div class="li-main"><div class="li-title">${escapeHTML(f.nome)}</div><div class="li-sub">${escapeHTML(contato)}</div></div>
+          <div class="li-right"><span class="li-sub">${n} produto(s)</span>${admin ? ICONS.chevron : ''}</div>
+        </div>`;
+      }).join('')}</div>`}
+  `;
+}
+
+function fornecedorModalHTML(fornecedor){
+  const f = fornecedor || {id:null, nome:'', documento:'', contato:'', telefone:'', email:'', observacoes:''};
+  return `
+  <div class="overlay" id="modalOverlay" ${fornecedor ? `data-edit-id="${fornecedor.id}"` : ''}>
+    <div class="modal">
+      <div class="modal-head"><h3>${fornecedor ? 'Editar fornecedor' : 'Novo fornecedor'}</h3><button class="icon-btn" id="closeModal">${ICONS.close}</button></div>
+      <div class="modal-body">
+        <div class="field"><label>Nome / razão social *</label><input type="text" id="f_fornNome" value="${escapeAttr(f.nome)}"></div>
+        <div class="row2">
+          <div class="field"><label>CNPJ/CPF (opcional)</label><input type="text" id="f_fornDocumento" value="${escapeAttr(f.documento)}"></div>
+          <div class="field"><label>Pessoa de contato</label><input type="text" id="f_fornContato" value="${escapeAttr(f.contato)}"></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Telefone / WhatsApp</label><input type="tel" id="f_fornTelefone" value="${escapeAttr(f.telefone)}"></div>
+          <div class="field"><label>E-mail</label><input type="email" id="f_fornEmail" value="${escapeAttr(f.email)}"></div>
+        </div>
+        <div class="field"><label>Observações</label><textarea id="f_fornObs" rows="2" placeholder="Ex.: prazo de entrega, condições de pagamento...">${escapeHTML(f.observacoes)}</textarea></div>
+      </div>
+      <div class="modal-foot">
+        ${fornecedor ? `<button class="btn btn-danger-ghost" id="delFornecedor">${ICONS.trash} Excluir</button>` : ''}
+        <div style="flex:1;"></div>
+        <button class="btn btn-ghost" id="cancelModal">Cancelar</button>
+        <button class="btn btn-primary" id="saveFornecedor">Salvar fornecedor</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+
+/* =======================================================================
    MONITORAMENTO COLABORATIVO — controle operacional de assinaturas e cobranças
    IMPORTANTE: este módulo NÃO processa pagamento nenhum. Ele só registra, manualmente,
    o status de cobranças recorrentes (o dinheiro em si passa por fora — Pix, boleto, etc.
@@ -2590,19 +2816,29 @@ async function contarDocumentosCliente(clienteId){
   return arquivos.length;
 }
 /* Backup completo: gera um .json com todos os dados de negócio, salva no OneDrive (pasta Backups) e baixa uma cópia local */
+/* Todas as "tabelas" do sistema que entram no backup. Ao criar uma coleção nova de dados, acrescente-a aqui
+   para que ela seja protegida pelo backup e restaurada junto com o resto. */
+const COLECOES_BACKUP = [
+  {chave:'clientes', rotulo:'cliente(s)', salvar:()=>saveClientes()},
+  {chave:'orcamentos', rotulo:'orçamento(s)', salvar:()=>saveOrcamentos()},
+  {chave:'checklists', rotulo:'checklist(s)', salvar:()=>saveChecklists()},
+  {chave:'contratos', rotulo:'contrato(s)', salvar:()=>saveContratos()},
+  {chave:'equipamentos', rotulo:'equipamento(s)', salvar:()=>saveEquipamentos()},
+  {chave:'produtos', rotulo:'produto(s)', salvar:()=>saveProdutos()},
+  {chave:'fornecedores', rotulo:'fornecedor(es)', salvar:()=>saveFornecedores()},
+  {chave:'monitoramentoPlanos', rotulo:'plano(s) de monitoramento', salvar:()=>saveMonitoramentoPlanos()},
+  {chave:'monitoramentoAssinaturas', rotulo:'assinatura(s) de monitoramento', salvar:()=>saveMonitoramentoAssinaturas()},
+  {chave:'monitoramentoCobrancas', rotulo:'cobrança(s) de monitoramento', salvar:()=>saveMonitoramentoCobrancas()},
+];
+function montarPayloadBackup(){
+  const payload = {versao:2, geradoEm:new Date().toISOString(), empresa:state.empresa};
+  COLECOES_BACKUP.forEach(c=>{ payload[c.chave] = state[c.chave]; });
+  return payload;
+}
 async function gerarBackupCompleto(){
   toast('Gerando backup…');
   try{
-    const payload = {
-      versao: 1,
-      geradoEm: new Date().toISOString(),
-      empresa: state.empresa,
-      clientes: state.clientes,
-      orcamentos: state.orcamentos,
-      checklists: state.checklists,
-      contratos: state.contratos,
-    };
-    const json = JSON.stringify(payload, null, 2);
+    const json = JSON.stringify(montarPayloadBackup(), null, 2);
     const filename = `Backup-${todayISO()}.json`;
     await graphPutFile(`Backups/${filename}`, json);
     const blob = new Blob([json], {type:'application/json'});
@@ -2613,27 +2849,27 @@ async function gerarBackupCompleto(){
     toast('Backup salvo no OneDrive (pasta Backups) e baixado — guarde essa cópia baixada em local seguro');
   }catch(e){ toast('Erro ao gerar backup'); }
 }
-/* Restaura um backup .json previamente baixado — SUBSTITUI clientes, orçamentos, checklists, contratos e dados
-   da empresa atuais pelos do arquivo. Usuários/senhas não são alterados por segurança. */
+/* Restaura um backup .json previamente baixado. Só substitui as categorias que EXISTEM no arquivo
+   (backups antigos não têm equipamentos/produtos/monitoramento — esses dados atuais ficam como estão).
+   Usuários/senhas nunca são alterados por segurança. */
 async function restaurarBackup(file){
   try{
     const texto = await file.text();
     const payload = JSON.parse(texto);
-    const partes = [];
-    if(Array.isArray(payload.clientes)) partes.push(payload.clientes.length+' cliente(s)');
-    if(Array.isArray(payload.orcamentos)) partes.push(payload.orcamentos.length+' orçamento(s)');
-    if(Array.isArray(payload.checklists)) partes.push(payload.checklists.length+' checklist(s)');
-    if(Array.isArray(payload.contratos)) partes.push(payload.contratos.length+' contrato(s)');
-    const resumo = partes.join(', ') || 'nenhum dado reconhecido';
-    const confirmar = confirm(`Este backup foi gerado em ${payload.geradoEm ? fmtDate(payload.geradoEm.slice(0,10)) : 'data desconhecida'} e contém: ${resumo}.\n\nISSO VAI SUBSTITUIR todos os clientes, orçamentos, checklists e contratos ATUAIS por esses do backup — o que existir hoje e não estiver no backup será perdido. Os logins de usuário não serão alterados.\n\nTem certeza que deseja restaurar?`);
+    if(!payload || typeof payload!=='object') throw new Error('formato');
+    const presentes = COLECOES_BACKUP.filter(c=>Array.isArray(payload[c.chave]));
+    const ausentes = COLECOES_BACKUP.filter(c=>!Array.isArray(payload[c.chave]));
+    const temEmpresa = !!(payload.empresa && typeof payload.empresa==='object');
+    if(presentes.length===0 && !temEmpresa){ toast('Esse arquivo não parece ser um backup do NOVYX'); return; }
+    const resumo = presentes.map(c=>payload[c.chave].length+' '+c.rotulo).join(', ') || 'apenas os dados da empresa';
+    const quando = payload.geradoEm ? fmtDate(String(payload.geradoEm).slice(0,10)) : 'data desconhecida';
+    const aviso = ausentes.length ? `\n\nEstas categorias NÃO estão neste backup e ficam como estão hoje: ${ausentes.map(c=>c.rotulo.replace(/\(.*?\)/g,'').trim()).join(', ')}.` : '';
+    const confirmar = confirm(`Este backup foi gerado em ${quando} e contém: ${resumo}.\n\nISSO VAI SUBSTITUIR os dados ATUAIS dessas categorias pelos do backup — o que existir hoje e não estiver no backup será perdido.${aviso}\n\nOs logins de usuário não são alterados.\n\nTem certeza que deseja restaurar?`);
     if(!confirmar) return;
-    if(Array.isArray(payload.clientes)) state.clientes = payload.clientes;
-    if(Array.isArray(payload.orcamentos)) state.orcamentos = payload.orcamentos;
-    if(Array.isArray(payload.checklists)) state.checklists = payload.checklists;
-    if(Array.isArray(payload.contratos)) state.contratos = payload.contratos;
-    if(payload.empresa) state.empresa = payload.empresa;
+    presentes.forEach(c=>{ state[c.chave] = payload[c.chave]; });
+    if(temEmpresa) state.empresa = payload.empresa;
     toast('Restaurando dados no OneDrive…');
-    await Promise.all([saveClientes(), saveOrcamentos(), saveChecklists(), saveContratos(), saveEmpresa()]);
+    await Promise.all([...presentes.map(c=>c.salvar()), ...(temEmpresa ? [saveEmpresa()] : [])]);
     render();
     toast('Backup restaurado com sucesso');
   }catch(e){ toast('Erro ao restaurar backup — verifique se o arquivo é um backup válido do NOVYX'); }
@@ -2889,6 +3125,8 @@ function openLightbox(dataUrl, filename){
    EVENTOS
    ======================================================================= */
 function bindGlobalEvents(){
+  const abaAtiva = document.querySelector('.bottom-nav .bn-item.active');
+  if(abaAtiva && abaAtiva.scrollIntoView) abaAtiva.scrollIntoView({inline:'center', block:'nearest'});
   document.querySelectorAll('[data-nav]').forEach(el=>{
     el.addEventListener('click', ()=>{ state.view = el.getAttribute('data-nav'); state.search=''; render(); });
   });
@@ -2909,6 +3147,39 @@ function bindGlobalEvents(){
   if(agendaDataInput) agendaDataInput.addEventListener('change', e=>{ state.agendaData = e.target.value || todayISO(); render(); });
   const agendaHojeBtn = document.getElementById('agendaHojeBtn');
   if(agendaHojeBtn) agendaHojeBtn.addEventListener('click', ()=>{ state.agendaData = todayISO(); render(); });
+  /* --- Produtos e Fornecedores (telas) --- */
+  document.querySelectorAll('[data-catalogo-aba]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ state.catalogoAba = btn.getAttribute('data-catalogo-aba'); render(); });
+  });
+  const produtoBuscaInput = document.getElementById('produtoBuscaInput');
+  if(produtoBuscaInput) produtoBuscaInput.addEventListener('input', e=>{
+    state.produtoBusca = e.target.value; render();
+    const novo = document.getElementById('produtoBuscaInput'); // o campo é recriado no render — devolve o foco ao novo
+    if(novo){ novo.focus(); novo.setSelectionRange(novo.value.length, novo.value.length); }
+  });
+  const produtoFiltroFornecedor = document.getElementById('produtoFiltroFornecedor');
+  if(produtoFiltroFornecedor) produtoFiltroFornecedor.addEventListener('change', e=>{ state.produtoFiltroFornecedor = e.target.value; render(); });
+  const exportProdutosBtn = document.getElementById('exportProdutosBtn');
+  if(exportProdutosBtn) exportProdutosBtn.addEventListener('click', ()=>exportarExcel(produtosExportRows(produtosFiltrados()), 'Produtos.csv', 'Produtos'));
+  const novoProdutoBtn = document.getElementById('novoProdutoBtn');
+  if(novoProdutoBtn) novoProdutoBtn.addEventListener('click', ()=>{ if(podeGerenciarCatalogo()) openModal(produtoModalHTML()); });
+  document.querySelectorAll('[data-produto-open]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      if(!podeGerenciarCatalogo()) return;
+      const p = state.produtos.find(x=>x.id===el.getAttribute('data-produto-open'));
+      if(p) openModal(produtoModalHTML(p));
+    });
+  });
+  const novoFornecedorBtn = document.getElementById('novoFornecedorBtn');
+  if(novoFornecedorBtn) novoFornecedorBtn.addEventListener('click', ()=>{ if(podeGerenciarCatalogo()) openModal(fornecedorModalHTML()); });
+  document.querySelectorAll('[data-fornecedor-open]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      if(!podeGerenciarCatalogo()) return;
+      const f = state.fornecedores.find(x=>x.id===el.getAttribute('data-fornecedor-open'));
+      if(f) openModal(fornecedorModalHTML(f));
+    });
+  });
+
   /* --- Monitoramento Colaborativo --- */
   document.querySelectorAll('[data-monit-aba]').forEach(btn=>{
     btn.addEventListener('click', ()=>{ state.monitoramentoAba = btn.getAttribute('data-monit-aba'); render(); });
@@ -3172,6 +3443,80 @@ function bindModalEvents(){
       endereco: document.getElementById('f_empEndereco').value.trim(),
     };
     await saveEmpresa(); closeModalEl(); render(); toast('Dados da empresa salvos');
+  });
+  /* --- Produtos e Fornecedores (janelas de cadastro) --- */
+  const saveProdutoBtn = document.getElementById('saveProduto');
+  if(saveProdutoBtn) saveProdutoBtn.addEventListener('click', async ()=>{
+    if(!podeGerenciarCatalogo()) return;
+    const nome = document.getElementById('f_prodNome').value.trim();
+    const valorVenda = Number(document.getElementById('f_prodVenda').value);
+    if(!nome){ toast('Informe o nome do produto'); return; }
+    if(isNaN(valorVenda) || valorVenda<0){ toast('Informe um valor de venda válido'); return; }
+    const editId = overlay.getAttribute('data-edit-id');
+    // O orçamento reconhece o produto pelo nome — dois produtos com o mesmo nome causariam confusão
+    const repetido = state.produtos.find(p=>p.id!==editId && (p.nome||'').trim().toLowerCase()===nome.toLowerCase());
+    if(repetido){ toast('Já existe um produto com esse nome — use outro nome ou edite o existente'); return; }
+    const data = {
+      nome,
+      codigo: document.getElementById('f_prodCodigo').value.trim(),
+      categoria: document.getElementById('f_prodCategoria').value.trim(),
+      unidade: document.getElementById('f_prodUnidade').value || 'un',
+      fornecedorId: document.getElementById('f_prodFornecedor').value,
+      custo: Number(document.getElementById('f_prodCusto').value)||0,
+      valorVenda,
+      observacoes: document.getElementById('f_prodObs').value.trim(),
+      ativo: document.getElementById('f_prodAtivo').checked,
+    };
+    if(editId){
+      const idx = state.produtos.findIndex(p=>p.id===editId);
+      state.produtos[idx] = {...state.produtos[idx], ...data};
+    }else{
+      state.produtos.push({id:uid(), ...data, criadoEm:Date.now()});
+    }
+    await saveProdutos(); closeModalEl(); render(); toast('Produto salvo com sucesso');
+  });
+  const delProdutoBtn = document.getElementById('delProduto');
+  if(delProdutoBtn) delProdutoBtn.addEventListener('click', async ()=>{
+    if(!podeGerenciarCatalogo()) return;
+    const editId = overlay.getAttribute('data-edit-id');
+    if(!editId) return;
+    if(!confirm('Excluir este produto do catálogo? Orçamentos já criados não são afetados. (Se só quer parar de usá-lo, desmarque "Ativo" em vez de excluir.)')) return;
+    state.produtos = state.produtos.filter(p=>p.id!==editId);
+    await saveProdutos(); closeModalEl(); render(); toast('Produto excluído');
+  });
+  const saveFornecedorBtn = document.getElementById('saveFornecedor');
+  if(saveFornecedorBtn) saveFornecedorBtn.addEventListener('click', async ()=>{
+    if(!podeGerenciarCatalogo()) return;
+    const nome = document.getElementById('f_fornNome').value.trim();
+    if(!nome){ toast('Informe o nome do fornecedor'); return; }
+    const editId = overlay.getAttribute('data-edit-id');
+    const repetido = state.fornecedores.find(f=>f.id!==editId && (f.nome||'').trim().toLowerCase()===nome.toLowerCase());
+    if(repetido){ toast('Já existe um fornecedor com esse nome'); return; }
+    const data = {
+      nome,
+      documento: document.getElementById('f_fornDocumento').value.trim(),
+      contato: document.getElementById('f_fornContato').value.trim(),
+      telefone: document.getElementById('f_fornTelefone').value.trim(),
+      email: document.getElementById('f_fornEmail').value.trim(),
+      observacoes: document.getElementById('f_fornObs').value.trim(),
+    };
+    if(editId){
+      const idx = state.fornecedores.findIndex(f=>f.id===editId);
+      state.fornecedores[idx] = {...state.fornecedores[idx], ...data};
+    }else{
+      state.fornecedores.push({id:uid(), ...data});
+    }
+    await saveFornecedores(); closeModalEl(); render(); toast('Fornecedor salvo com sucesso');
+  });
+  const delFornecedorBtn = document.getElementById('delFornecedor');
+  if(delFornecedorBtn) delFornecedorBtn.addEventListener('click', async ()=>{
+    if(!podeGerenciarCatalogo()) return;
+    const editId = overlay.getAttribute('data-edit-id');
+    if(!editId) return;
+    if(produtosDoFornecedor(editId).length>0){ toast('Existem produtos vinculados a este fornecedor — altere ou exclua esses produtos primeiro'); return; }
+    if(!confirm('Excluir este fornecedor?')) return;
+    state.fornecedores = state.fornecedores.filter(f=>f.id!==editId);
+    await saveFornecedores(); closeModalEl(); render(); toast('Fornecedor excluído');
   });
   const savePlanoBtn = document.getElementById('savePlano');
   if(savePlanoBtn) savePlanoBtn.addEventListener('click', async ()=>{
@@ -3473,16 +3818,36 @@ function bindModalEvents(){
   }
   if(descontoPctInput) descontoPctInput.addEventListener('input', recomputeTotalsLive);
   function itemRowInner(){
-    return `<td><input type="text" class="it-desc" placeholder="Ex.: Câmera IP 4MP com instalação"></td>
+    return `<td><input type="text" class="it-desc" list="listaProdutosCatalogo" placeholder="Digite ou escolha um produto do catálogo"></td>
       <td><input type="number" class="it-qtd" value="1" min="0" step="1"></td>
       <td><input type="number" class="it-valor" value="0" min="0" step="0.01"></td>
       <td><button class="icon-btn removeItemBtn" title="Remover item">${ICONS.close}</button></td>`;
+  }
+  /* Ao escolher/digitar o nome exato de um produto do catálogo: vincula a linha ao produto e preenche o preço.
+     Se o nome não bate com nenhum produto, o item é "livre" (fora do catálogo) e o preço não é alterado. */
+  function aplicarProdutoNaLinha(inp){
+    const tr = inp.closest('tr'); if(!tr) return;
+    const prod = produtoPorNome(inp.value);
+    const campoValor = tr.querySelector('.it-valor');
+    if(prod){
+      const jaVinculado = tr.getAttribute('data-produto-id')===prod.id;
+      tr.setAttribute('data-produto-id', prod.id);
+      inp.value = prod.nome;
+      if(!jaVinculado || !(Number(campoValor.value)>0)) campoValor.value = Number(prod.valorVenda)||0;
+      recomputeTotalsLive();
+    }else{
+      tr.setAttribute('data-produto-id','');
+    }
   }
   function bindItemRowEvents(){
     document.querySelectorAll('.removeItemBtn').forEach(b=>{
       b.onclick = ()=>{ const rows = document.querySelectorAll('#itensTable tbody tr'); if(rows.length<=1){ toast('Mantenha ao menos 1 item'); return;} b.closest('tr').remove(); recomputeTotalsLive(); };
     });
     document.querySelectorAll('.it-qtd, .it-valor').forEach(inp=>{ inp.oninput = recomputeTotalsLive; });
+    document.querySelectorAll('.it-desc').forEach(inp=>{
+      inp.onchange = ()=>aplicarProdutoNaLinha(inp);
+      inp.oninput = e=>{ if(!e.inputType || e.inputType==='insertReplacementText') aplicarProdutoNaLinha(inp); }; // escolha na lista de sugestões
+    });
   }
 
   /* --- Orçamento: fotos antes --- */
@@ -3528,6 +3893,7 @@ function bindModalEvents(){
     const itens = Array.from(document.querySelectorAll('#itensTable tbody tr')).map(tr=>({
       id: tr.getAttribute('data-item-id') || uid(),
       descricao: tr.querySelector('.it-desc').value.trim(),
+      produtoId: tr.getAttribute('data-produto-id') || '',
       qtd: Number(tr.querySelector('.it-qtd').value)||0,
       valorUnit: Number(tr.querySelector('.it-valor').value)||0,
     })).filter(it=>it.descricao);
